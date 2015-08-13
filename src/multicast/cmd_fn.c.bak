@@ -1,0 +1,926 @@
+/*****************************************************************************
+*
+* © 2014 Cyber-SB. Written by Selyutin Alex.
+*
+*****************************************************************************/
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "../stellaris.h"
+#include "../tnkernel/tn.h"
+#include "../lwip/lwiplib.h"
+#include "../memory/firmware.h"
+#include "../memory/memory.h"
+#include "../pins.h"
+#include "../pref.h"
+#include "../adcc.h"
+#include "../version.h"
+#include "cmd_ch.h"
+#include "cmd_fn.h"
+#include "../mem_map.h"
+#include "../crc32.h"
+#include "../adcc.h"
+#include "../gps/gps.h"
+#include "../memory/ds1390.h"
+#include "../light/light.h"
+
+
+#define ERR_STR_WRONG_PARAM     "ERR: Wrong parameters\n"
+
+static struct eth_addr          g_hwaddr;
+static enum net_mode            g_net_mode;
+static struct ip_addr           g_ipaddr, g_ipmsk, g_ipgw, g_cmd_ip;
+static unsigned                 g_cmd_port;
+
+// local functions
+
+static void process_get_cmd(struct cmd_raw* cmd_p, char const* par);
+static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* val);
+static int  hex2buf(unsigned char* buf, unsigned len, char const* hex);
+static int  buf2hex(char* hex, unsigned hex_len, unsigned char* buf, unsigned len);
+static int  hex2char(int hex);
+static void char2hex(char hex[2], int ch);
+
+static err_t udp_send_success(struct cmd_raw* cmd_p);
+static err_t udp_send_not_enough_mem(struct cmd_raw* cmd_p);
+static err_t udp_send_wrong_par(struct cmd_raw* cmd_p);
+static err_t udp_send_GPS_Info(struct cmd_raw* cmd_p);
+static err_t udp_send_GPS_Time(struct cmd_raw* cmd_p);
+static err_t udp_send_DS1390_time(struct cmd_raw* cmd_p);
+static err_t udp_send_Light(struct cmd_raw* cmd_p);
+static err_t udp_send_info(struct cmd_raw* cmd_p);
+static err_t udp_send_tvp(struct cmd_raw* cmd_p);
+
+static err_t udp_send_config(struct cmd_raw* cmd_p);
+
+static struct cmd_raw debug_cmd_p;
+static BOOL debugee_flag=false;
+////
+void debugee(char const* s)
+{
+    if (debugee_flag)
+      udp_sendstr(&debug_cmd_p, s);
+}
+///
+void cmd_debugee_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    memcpy(&debug_cmd_p, cmd_p, sizeof(debug_cmd_p));
+    debugee_flag=true;
+    udp_sendstr(cmd_p, "DEBUGEE Set. ...\n");
+    //tn_reset();
+}
+/////
+void cmd_ifconfig_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc != 0)
+    {
+        udp_send_wrong_par(cmd_p);
+        return;
+    }
+
+    get_hwaddr(&g_hwaddr);
+    get_ipaddr(&g_ipaddr);
+    get_ipmask(&g_ipmsk);
+    get_ipgw(&g_ipgw);
+    get_cmd_ch_ip(&g_cmd_ip);
+    g_net_mode  = get_net_mode();
+    g_cmd_port  = (u16_t)pref_get_long(PREF_L_CMD_PORT);
+
+    udp_send_config(cmd_p);
+}
+
+void cmd_config_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc != 0)
+    {
+        udp_send_wrong_par(cmd_p);
+        return;
+    }
+
+    if (!hwaddr_load(&g_hwaddr))
+        memset(&g_hwaddr.addr, 0xFF, sizeof(g_hwaddr.addr));
+    g_ipaddr.addr   = pref_get_long(PREF_L_NET_IP);
+    g_ipmsk.addr    = pref_get_long(PREF_L_NET_MSK);
+    g_ipgw.addr     = pref_get_long(PREF_L_NET_GW);
+    g_cmd_ip.addr   = pref_get_long(PREF_L_CMD_SRV_IP);
+    g_net_mode      = (enum net_mode)pref_get_long(PREF_L_NET_MODE);
+    g_cmd_port      = pref_get_long(PREF_L_CMD_PORT);
+
+    udp_send_config(cmd_p);
+}
+
+void cmd_get_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc != 1)
+    {
+        udp_send_wrong_par(cmd_p);
+        return;
+    }
+
+    process_get_cmd(cmd_p, argv[0]);
+}
+
+void cmd_set_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc != 2)
+    {
+        udp_send_wrong_par(cmd_p);
+        return;
+    }
+
+    process_set_cmd(cmd_p, argv[0], argv[1]);
+}
+
+void cmd_reboot_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    udp_sendstr(cmd_p, "SUCCESS: Rebooting...\n");
+    tn_reset();
+}
+
+void cmd_prefReset_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc == 1)
+    {
+        unsigned par;
+        if ((sscanf(argv[0], "%u", &par) == 1) && par ==255)
+        {
+            udp_sendstr(cmd_p, "SUCCESS: FLASH was Erased...\n");
+            flash_erase();
+            return;
+        }
+    }else
+    if (argc == 0)
+    {
+        pref_reset();
+        udp_send_success(cmd_p);
+        return;
+    }
+    
+    udp_send_wrong_par(cmd_p);
+}
+
+void cmd_test_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    if (argc != 1)
+    {
+        udp_send_wrong_par(cmd_p);
+        return;
+    }
+
+    unsigned timeout;
+    if (sscanf(argv[0], "%u", &timeout) == 1)
+    {
+        //pref_set_long(PREF_L_ORION_TX_TIMEOUT, timeout);
+        //orion_reload_pref();
+        udp_send_success(cmd_p);
+    }
+}
+
+void cmd_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    static unsigned char buf[FLASH_MAX_PKT_LEN];
+    static unsigned char buf1[FLASH_MAX_PKT_LEN];
+    static unsigned long crc1, crc2;
+    unsigned short p_try;
+        
+    unsigned long addr, len;
+    int conv_len;
+
+    if (argc != 3)
+        goto err;
+
+    if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
+        goto err;
+
+    if (sscanf(argv[1], "%u", &len) != 1)
+        goto err;
+
+    conv_len = hex2buf(buf, sizeof(buf), argv[2]);
+    if (len != conv_len)
+        goto err;
+
+    crc1 = crc32_calc((unsigned char*)buf, len);
+    
+    p_try = 0;
+    while (p_try++ < 5)
+    {
+        flash_wr_direct(addr, buf, len);
+
+        flash_rd_direct(addr, buf1, len);
+    
+        crc2 = crc32_calc((unsigned char*)buf1, len);
+
+        if (crc1 == crc2)
+            break;
+    }
+    if (p_try >= 5)
+        goto err1;
+
+    
+    udp_send_success(cmd_p);
+    return;
+
+err:
+    snprintf((char*)buf, sizeof(buf), ERR_STR_WRONG_PARAM "flashwr hexADDR decLEN hexDATA(max %u bytes)\n", FLASH_MAX_PKT_LEN);
+    udp_sendstr(cmd_p, (char*)buf);
+    return;
+    
+err1:
+    snprintf((char*)buf, sizeof(buf), ERR_STR_WRONG_PARAM "can't write data to flash\n");
+    udp_sendstr(cmd_p, (char*)buf);
+    return;    
+}
+
+void cmd_flashrd_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    static unsigned char buf[FLASH_MAX_PKT_LEN];
+    static char          bufx[FLASH_MAX_PKT_LEN * 2 + 1];    
+    unsigned long        addr, len;
+    int                  conv_len;
+    
+    if (argc != 2)
+        goto err;
+
+    if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
+        goto err;
+
+    if (sscanf(argv[1], "%u", &len) != 1 || len > FLASH_MAX_PKT_LEN )
+        goto err;
+
+    flash_rd_direct(addr, buf, len);
+    
+    conv_len = buf2hex(bufx, sizeof(bufx), buf, len);
+    if (conv_len != len * 2)
+        goto err;
+
+    bufx[conv_len++] = '\n';
+    udp_sendbuf(cmd_p, bufx, conv_len);
+    return;
+
+err:
+    udp_sendstr(cmd_p, ERR_STR_WRONG_PARAM "flashrd hexADDR decLEN\n");
+
+}
+
+
+void cmd_flash_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    static unsigned char buf[FIRMWARE_MAX_PKT_LEN];
+    static unsigned char buf1[FIRMWARE_MAX_PKT_LEN];
+    static unsigned long crc1, crc2;
+    unsigned short p_try;
+           
+    unsigned long addr, len;
+    int conv_len;
+
+    if (argc != 3)
+        goto err;
+
+    if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
+        goto err;
+
+    if (sscanf(argv[1], "%u", &len) != 1)
+        goto err;
+
+    conv_len = hex2buf(buf, sizeof(buf), argv[2]);
+    if (len != conv_len)
+        goto err;
+
+    crc1 = crc32_calc((unsigned char*)buf, len);
+    
+    p_try = 0;
+    while (p_try++ < 5)
+    {
+        if (firmware_write(addr, buf, len) != FIRMWARE_ERR_NO_ERR)
+            goto err;
+
+        firmware_read(addr, buf1, len);
+    
+        crc2 = crc32_calc((unsigned char*)buf1, len);
+
+        if (crc1 == crc2)
+            break;
+    }
+    if (p_try >= 5)
+        goto err;
+
+    if (addr <= VTABLE_SZ && addr+len >= VTABLE_SZ)
+    {
+        if (!firmware_ver_chek())
+            goto err1;
+    }
+    
+    
+    udp_send_success(cmd_p);
+    return;
+
+err:
+    snprintf((char*)buf, sizeof(buf), ERR_STR_WRONG_PARAM "flash hexADDR decLEN hexDATA(max %u bytes)\n", FIRMWARE_MAX_PKT_LEN);
+    udp_sendstr(cmd_p, (char*)buf);
+    return;
+err1:
+    udp_sendstr(cmd_p, (char*)"ERR: Version major error");
+    
+}
+
+void cmd_flashNFO_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    unsigned long crc32, fw_len;
+    unsigned long crc32_real;
+
+    if (argc != 2)
+        goto err;
+
+    if (!(sscanf(argv[0], "%08X", &crc32) == 1 || sscanf(argv[0], "0x%08X", &crc32) == 1))
+        goto err;
+
+    if (sscanf(argv[1], "%u", &fw_len) != 1)
+        goto err;
+
+    if (!firmware_ver_chek())
+        goto err1;
+    
+    crc32_real = crc32_calc((unsigned char*)(MEM_FW_BUFFER_PTR + FIRMWARE_HDR_SIZE), fw_len);
+    if (crc32_real !=  crc32)
+        goto err;
+    if (firmware_write_nfo(crc32, fw_len) != FIRMWARE_ERR_NO_ERR)
+        goto err;
+
+    udp_send_success(cmd_p);
+    return;
+
+err:
+    udp_sendstr(cmd_p, ERR_STR_WRONG_PARAM "flashNFO hexCRC32 decLEN\n");
+    return;
+err1:
+    udp_sendstr(cmd_p, (char*)"ERR: Version major error");
+}
+
+
+
+
+void udp_send_lineADC(struct cmd_raw* cmd_p)
+{
+    ADC_DATA adc;
+    
+    struct pbuf* buf_p = pbuf_alloc(PBUF_RAW, 200, PBUF_RAM);
+    if (buf_p == 0)
+    {
+        udp_send_not_enough_mem(cmd_p);
+        return;
+    }    
+    
+    char* buf = buf_p->payload;   
+    
+    Get_real_adc(&adc);
+    
+    snprintf(buf, buf_p->len, 
+            "LineADC:\n"
+            "UG1 %.2f V\n"
+            "UG2 %.2f V\n"
+            "UG3 %.2f V\n"
+            "UG4 %.2f V\n"
+            "UG5 %.2f V\n"
+            "UG6 %.2f V\n"              
+            "UBat %.2f V\n"
+            "UTS %.1f C\n"
+            "IR1 %u\n"
+            "IR2 %u\n"
+            "IR3 %u\n"
+            "IR4 %u\n",              
+            (float)adc.UG1/100, (float)adc.UG2/100, (float)adc.UG3/100, 
+            (float)adc.UG4/100, (float)adc.UG5/100, (float)adc.UG6/100,
+            (float)adc.UBat/100, (float)adc.UTS/10, adc.IR1, adc.IR2, adc.IR3, adc.IR4
+            );
+    udp_sendstr(cmd_p, (char*)buf);
+
+    pbuf_free(buf_p);
+
+}
+
+// last function
+
+void cmd_help_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+    char const title[] = "Cmd's list:\n";
+
+    int buf_sz = 0;
+
+    buf_sz += strlen(title) + 1; // + '\0' char
+
+    struct cmd_nfo* nfo_p = g_cmd_nfo;
+    while (nfo_p != 0)
+    {
+        buf_sz += strlen(nfo_p->cmd_txt) + strlen(nfo_p->cmd_help)+1; // + '\n' char
+        nfo_p = nfo_p->next;
+    }
+
+    struct pbuf* buf_p = pbuf_alloc(PBUF_RAW, buf_sz, PBUF_RAM);
+
+    if (buf_p == 0)
+    {
+        udp_send_not_enough_mem(cmd_p);
+        return;
+    }
+
+    char* buf = buf_p->payload;
+
+    strcpy(buf, title);
+
+    nfo_p = g_cmd_nfo;
+    while (nfo_p != 0)
+    {
+        strcat(buf, nfo_p->cmd_txt);
+        strcat(buf, nfo_p->cmd_help);
+        strcat(buf, "\n");
+        nfo_p = nfo_p->next;
+    }
+    udp_sendstr(cmd_p, buf);
+    pbuf_free(buf_p);
+}
+
+// local functions
+
+static void process_get_cmd(struct cmd_raw* cmd_p, char const* par)
+{
+    if (strcmp(par, "gps_time") == 0)
+    {
+        udp_send_GPS_Time(cmd_p);      
+    }else
+    if (strcmp(par, "gps_info") == 0)
+    {
+        udp_send_GPS_Info(cmd_p);
+    }else
+    if (strcmp(par, "ds1390_time") == 0)
+    {
+        udp_send_DS1390_time(cmd_p);
+    }else
+    if (strcmp(par, "light") == 0)
+    {
+        udp_send_Light(cmd_p);
+    }else
+    if (strcmp(par, "info") == 0)
+    {
+        udp_send_info(cmd_p);
+    }
+    else
+    if (strcmp(par, "lineADC") == 0)
+    {
+        udp_send_lineADC(cmd_p);
+    }else
+    if (strcmp(par, "tvp") == 0)
+    {
+        udp_send_tvp(cmd_p);
+    }else
+      
+        udp_send_wrong_par(cmd_p);
+}
+
+static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* val)
+{
+    if (strcmp(par, "ip") == 0) // IPv4 adress
+    {
+        struct in_addr ip;
+        if (inet_aton(val, &ip))
+        {
+            pref_set_long(PREF_L_NET_IP, ip.s_addr);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "mask") == 0) // IPv4 mask
+    {
+        struct in_addr msk;
+        if (inet_aton(val, &msk))
+        {
+            pref_set_long(PREF_L_NET_MSK, msk.s_addr);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "gw") == 0) // IPv4 gateway
+    {
+        struct in_addr gw;
+        if (inet_aton(val, &gw))
+        {
+            pref_set_long(PREF_L_NET_GW, gw.s_addr);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "cmdSrvIP") == 0) // IPv4 command server addr
+    {
+        struct in_addr cmd_srv;
+        if (inet_aton(val, &cmd_srv))
+        {
+            pref_set_long(PREF_L_CMD_SRV_IP, cmd_srv.s_addr);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "cmdPort") == 0) // IPv4 command server addr
+    {
+        unsigned port;
+        if (sscanf(val, "%u", &port) == 1 && port <= 0xFFFF)
+        {
+            pref_set_long(PREF_L_CMD_PORT, port);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "dhcp") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            pref_set_long(PREF_L_NET_MODE, NET_MODE_DHCP);
+            udp_send_success(cmd_p);
+        }
+        else if (strcmp(val, "off") == 0)
+        {
+            pref_set_long(PREF_L_NET_MODE, NET_MODE_STATIC_IP);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "rele") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            pin_on(OPIN_POWER);  
+            //pref_set_long(PREF_L_NET_MODE, NET_MODE_DHCP);
+            udp_send_success(cmd_p);
+        }
+        else if (strcmp(val, "off") == 0)
+        {
+            pin_off(OPIN_POWER);
+            //pref_set_long(PREF_L_NET_MODE, NET_MODE_STATIC_IP);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "hwaddr") == 0)
+    {
+        unsigned hw[6];
+        if (sscanf(val, "%02X:%02X:%02X:%02X:%02X:%02X", &hw[0], &hw[1], &hw[2], &hw[3], &hw[4], &hw[5]) == 6)
+        {
+/*            
+            struct eth_addr hwaddr;
+            for (int i = 0; i < sizeof(hwaddr.addr); ++i)
+                hwaddr.addr[i] = hw[i];
+*/          if ( (hw[0] == 0xFF && hw[1] == 0xFF && hw[2] == 0xFF && hw[3] == 0xFF && hw[4] == 0xFF && hw[5] == 0xFF)
+                 || ((hw[0]|hw[1]|hw[2]|hw[3]|hw[4]|hw[5])== 0))
+                 {
+                     udp_send_wrong_par(cmd_p);
+                 }else  
+                 {
+                     pref_set_long(PREF_L_MAC_1, hw[0] | (hw[1]<<8) | (hw[2]<<16) | (hw[3]<<24));
+                     pref_set_long(PREF_L_MAC_2, hw[4] | (hw[5]<<8));
+                     udp_sendstr(cmd_p, "SUCCESS: hwaddr was written to flash\n");
+                 }
+/*            if (hwaddr_save(&hwaddr))
+                udp_sendstr(cmd_p, "SUCCESS: hwaddr was written to flash user registers.\n");
+            else
+                udp_sendstr(cmd_p, "ERR: hwaddr is already programmed.\n");
+*/
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }
+    else if (strcmp(par, "pwm_rgy") == 0)
+    {
+        unsigned PWM_r, PWM_g, PWM_y;
+        if (sscanf(val, "%u,%u,%u", &PWM_r, &PWM_g, &PWM_y) == 3 && (PWM_r <= 100) && (PWM_g <= 100)&& (PWM_y <= 100))
+        {
+            pref_set_long(PREF_L_PWM_RGY, (PWM_r<<16)|(PWM_g<<8)|PWM_y);
+            SetPWM((PWM_r<<16)|(PWM_g<<8)|PWM_y);
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);        
+        
+    }else if (strcmp(par, "work") == 0)
+    {
+        if (strcmp(val, "start") == 0)
+        {
+            if (GetLightMachineWork())
+            {
+                udp_sendstr(cmd_p, "ERR: Light_machine is working\n");
+            }else
+            {
+                SetLightMachineWork(TRUE);
+                udp_sendstr(cmd_p, "SUCCESS: Light_machine is started\n");
+            }
+        }
+        else if (strcmp(val, "stop") == 0)
+        {
+            if (GetLightMachineWork())
+            {
+                SetLightMachineWork(FALSE);
+                udp_sendstr(cmd_p, "SUCCESS: Light_machine is stoped\n");
+            }else
+            {
+                udp_sendstr(cmd_p, "ERR: Light_machine is stop\n\n");
+            }
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }else if (strcmp(par, "light_r") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            SetLight ( RED | (RED<<4) | (RED<<8) | (RED<<12));
+            udp_send_success(cmd_p);
+        }
+        else if (strcmp(val, "off") == 0)
+        {
+            SetLight ( 0x0000 );
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }else if (strcmp(par, "light_y") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            SetLight ( YELLOW  | (YELLOW<<8) );
+            udp_send_success(cmd_p);
+        }
+        else if (strcmp(val, "off") == 0)
+        {
+            SetLight ( 0x0000 );
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }else if (strcmp(par, "light_g") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            SetLight ( GREEN | (GREEN<<4) | (GREEN<<8) | (GREEN<<12) );
+            udp_send_success(cmd_p);
+        }
+        else if (strcmp(val, "off") == 0)
+        {
+            SetLight ( 0x0000 );
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }else if (strcmp(par, "dark") == 0)
+    {
+        if (strcmp(val, "on") == 0)
+        {
+            SetLight ( 0x0000 );
+            udp_send_success(cmd_p);
+        }
+        else
+            udp_send_wrong_par(cmd_p);
+    }else if (strcmp(par, "ds1390_time") == 0)
+    {
+        DS1390_TIME t;
+        unsigned i[6];
+        struct tm tp;
+        
+        if (sscanf(val, "%u.%u.%u-%u:%u:%u", &i[0], &i[1], &i[2], &i[3], &i[4], &i[5]) == 6)
+        {
+            t.msec = 0;
+            t.sec = (unsigned char)i[5];
+            t.min = (unsigned char)i[4];
+            t.hour = (unsigned char)i[3];
+            t.year = (unsigned short)i[2];
+            t.month = (unsigned char)i[1];
+            t.date = (unsigned char)i[0];
+
+            if (SetTime_DS1390(&t))
+                udp_send_success(cmd_p);
+            else
+                udp_send_wrong_par(cmd_p);
+            
+            tp.tm_sec = (unsigned char)i[5];
+            tp.tm_min = (unsigned char)i[4];
+            tp.tm_hour = (unsigned char)i[3];
+            tp.tm_mday = (unsigned char)i[0];
+            tp.tm_mon = (unsigned char)i[1];
+            tp.tm_year = (unsigned short)i[2];
+            if (tp.tm_year < 100)
+               tp.tm_year+=2000; 
+            if (!tm_is_valid(&tp))
+                udp_send_wrong_par(cmd_p);
+
+            time_t t = mktime(&tp);
+            stime(&t);
+            
+        }
+        else
+            udp_sendstr(cmd_p, "set ds1390_time XX.XX.XX-XX:XX:XX\n");
+    }else         
+        udp_send_wrong_par(cmd_p);
+}
+
+static int hex2buf(unsigned char* buf, unsigned len, char const* hex)
+{
+    int conv_len = 0;
+
+    while (len-- && *hex != '\0')
+    {
+        if (*(hex + 1) == '\0')
+            break;
+
+        int hi = hex2char(*hex++);
+        int lo = hex2char(*hex++);
+
+        if (hi == -1 || lo == -1)
+            break;
+
+        *buf++ = (unsigned char)((hi << 4) + lo);
+        conv_len++;
+    }
+
+    return conv_len;
+}
+
+static int buf2hex(char* hex, unsigned hex_len, unsigned char* buf, unsigned len)
+{
+    int conv_len = 0;
+    char hex_buf[2];
+
+    if (hex_len < len * 2 + 1)
+        return conv_len;
+
+    while (len--)
+    {
+        char2hex(hex_buf, *buf++);
+        hex[conv_len++] = hex_buf[0];
+        hex[conv_len++] = hex_buf[1];
+    }
+
+    hex[conv_len] = '\0';
+    return conv_len;
+}
+
+static int hex2char(int hex)
+{
+    if (hex >= '0' && hex <= '9')
+        return hex - '0';
+    else if (hex >= 'A' && hex <= 'F')
+        return hex - 'A' + 10;
+    else if (hex >= 'a' && hex <= 'f')
+        return hex - 'a' + 10;
+    else
+        return -1;
+}
+
+static void char2hex(char hex[2], int ch)
+{
+    hex[0] = ch >> 4 & 0x0F;
+    hex[1] = ch & 0x0F;
+
+    hex[0] = hex[0] > 9 ? 'A' + hex[0] - 10 : '0' + hex[0];
+    hex[1] = hex[1] > 9 ? 'A' + hex[1] - 10 : '0' + hex[1];
+}
+
+static err_t udp_send_success(struct cmd_raw* cmd_p)
+{
+    return udp_sendstr(cmd_p, "SUCCESS: Normal completion\n");
+}
+
+static err_t udp_send_not_enough_mem(struct cmd_raw* cmd_p)
+{
+    return udp_sendstr(cmd_p, "ERR: Not enough memory\n");
+}
+
+static err_t udp_send_wrong_par(struct cmd_raw* cmd_p)
+{
+    return udp_sendstr(cmd_p, ERR_STR_WRONG_PARAM);
+}
+
+
+static err_t udp_send_GPS_Info(struct cmd_raw* cmd_p)
+{
+    char buf[192];
+    
+    GPS_INFO gps;
+    
+    Get_gps_info(&gps);
+
+    snprintf(buf, sizeof(buf), "GPS health - %s, fix - %s\n"
+                               "GPS Time: %02d.%02d.%02d-%02d:%02d:%02d\n"
+                               "GPS Position: Latitude %f, Longitude %f, Altitude %.1f\n",
+             gps.health?"TRUE":"FALSE", gps.fix_valid?"TRUE":"FALSE",
+             gps.time_pack.date, gps.time_pack.month, gps.time_pack.year,
+             gps.time_pack.hour, gps.time_pack.min, gps.time_pack.sec,
+             gps.Position.Latitude,gps.Position.Longitude,gps.Position.Altitude
+             );
+    return udp_sendstr(cmd_p, buf);
+}
+
+static err_t udp_send_GPS_Time(struct cmd_raw* cmd_p)
+{
+    char buf[128];
+    
+    GPS_INFO gps;
+    
+    Get_gps_info(&gps);
+
+    snprintf(buf, sizeof(buf), "GPS Time %02d.%02d.%02d-%02d:%02d:%02d-%s\n", 
+             gps.time_pack.date, gps.time_pack.month, gps.time_pack.year,
+             gps.time_pack.hour, gps.time_pack.min, gps.time_pack.sec,gps.fix_valid?"TRUE":"FALSE");
+    return udp_sendstr(cmd_p, buf);
+}
+
+static err_t udp_send_DS1390_time(struct cmd_raw* cmd_p)
+{
+    char buf[128];
+    BOOL true_time;
+    const char * days[7] = {"SUN","MON","TUE","WED","THU","FRI","SAT" };
+    DS1390_TIME time;
+    
+    true_time = GetTime_DS1390(&time);
+
+    snprintf(buf, sizeof(buf), "DS1390 Time is %s\n"
+                               "%02d.%02d.%d-%02d:%02d:%02d.%03d %s\n", 
+             true_time?"TRUE":"FALSE", time.date, time.month, time.year,
+             time.hour, time.min, time.sec, time.msec, time.day-1>6?"err":days[time.day-1]);
+    return udp_sendstr(cmd_p, buf);    
+}
+
+static err_t udp_send_Light(struct cmd_raw* cmd_p)
+{
+    char buf[128];
+
+    GetLightText((char*)buf);
+
+    return udp_sendstr(cmd_p, buf);
+}
+////
+static err_t udp_send_tvp(struct cmd_raw* cmd_p)
+{
+    char buf[128];
+    ///
+    strcpy(buf,"TVP1 is ");
+    if (pin_rd(IPIN_TVP0))
+      strcat(buf,"on");
+    else
+      strcat(buf,"off");
+    //
+    strcat(buf,". TVP2 is ");
+    if (pin_rd(IPIN_TVP1))
+      strcat(buf,"on\n");
+    else
+      strcat(buf,"off\n");
+    //
+    
+    
+    
+    return udp_sendstr(cmd_p, buf);
+}
+///
+
+static err_t udp_send_info(struct cmd_raw* cmd_p)
+{
+    char buf[64];
+    char buf1[128];
+    /*snprintf (buf, sizeof (buf),
+        "%s ver.%u.%u\n"
+        "%s\n"
+        "%s\n",
+        APP_NAME,VER_MAJOR,VER_MINOR,VER_SVN_DATE,APP_COPYRIGHT);*/
+    get_version(buf, sizeof(buf));
+    snprintf (buf1, sizeof(buf1),"%s\n"APP_COPYRIGHT"\n\n"
+        "CPU: LM3S9B96\n"
+        "Clk: %u MHz\n\n",
+        buf, hw_sys_clock()
+        );
+    return udp_sendstr(cmd_p, buf1);         
+}
+
+static err_t udp_send_config(struct cmd_raw* cmd_p)
+{
+    char buf[320];
+    snprintf(buf, sizeof(buf),
+        "IP      : %u.%u.%u.%u\n"
+        "Mask    : %u.%u.%u.%u\n"
+        "GW      : %u.%u.%u.%u\n"
+        "HwAddr  : %02X:%02X:%02X:%02X:%02X:%02X\n"
+        "Mode    : %s\n"
+        "CmdEP   : %u.%u.%u.%u:%u\n",
+        (unsigned)ip4_addr1(&g_ipaddr), (unsigned)ip4_addr2(&g_ipaddr), (unsigned)ip4_addr3(&g_ipaddr), (unsigned)ip4_addr4(&g_ipaddr),
+        (unsigned)ip4_addr1(&g_ipmsk), (unsigned)ip4_addr2(&g_ipmsk), (unsigned)ip4_addr3(&g_ipmsk), (unsigned)ip4_addr4(&g_ipmsk),
+        (unsigned)ip4_addr1(&g_ipgw), (unsigned)ip4_addr2(&g_ipgw), (unsigned)ip4_addr3(&g_ipgw), (unsigned)ip4_addr4(&g_ipgw),
+        (unsigned)g_hwaddr.addr[0], (unsigned)g_hwaddr.addr[1], (unsigned)g_hwaddr.addr[2], (unsigned)g_hwaddr.addr[3], (unsigned)g_hwaddr.addr[4], (unsigned)g_hwaddr.addr[5],
+        g_net_mode == NET_MODE_DHCP ? "DHCP" : "Static IP",
+
+        (unsigned)ip4_addr1(&g_cmd_ip), (unsigned)ip4_addr2(&g_cmd_ip), (unsigned)ip4_addr3(&g_cmd_ip), (unsigned)ip4_addr4(&g_cmd_ip), g_cmd_port
+        );
+
+    return udp_sendstr(cmd_p, buf);
+}

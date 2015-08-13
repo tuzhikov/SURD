@@ -1,0 +1,230 @@
+//---------------------------------------------------------------------------
+
+#ifndef dkH
+#define dkH
+//---------------------------------------------------------------------------
+#include "structures.h"
+
+
+#ifdef EMBEDDED_PROJ
+ #include "../tnkernel/tn.h"
+ #include "../light/light.h"
+ #include "../utime.h"
+#endif
+
+
+
+ //typedef unsigned char BYTE;
+ //typedef unsigned short WORD;
+ //typedef unsigned long DWORD;
+ 
+#ifndef  __cplusplus
+#define bool  unsigned char
+#define true  1
+#define false 0
+#endif 
+
+ //typedef struct tm SYSTEMTIME;
+
+//#define SYSTEMTIME      (struct tm)  
+// коды ошибок
+#define RET_OK          0
+
+// лаг времени системы -
+// запрет делать операции
+#define TIME_LAG        5
+
+
+////
+// 
+typedef enum __GO_STATE
+{
+        STA_INIT,
+        STA_GET_REQ, //получение запроса
+        STA_FIRST,
+        STA_WORK,
+        STA_CUR_NEXT,   //переход между состояниями
+        STA_SET_NEXT,
+        STA_OSN_TAKT,
+        STA_PROM_TAKTS,
+        STA_SPEC_PROG,
+        STA_PLAN_CALC_NEXT,
+        STA_SEE_REQUEST,
+        STA_KK,
+        STA_EXIT
+
+
+} GO_STATE;
+////
+//Состояния ДК
+//2) Выполняем фазу программы
+//1) Выполняем спец. программу - ЖМ, ОС, КК
+//0) Выполняем просто фазу (режим ВПУ)
+
+typedef enum __WORK_STATE
+{
+        SPEC_PROG    = 0x00,   //
+	SINGLE_FAZA  = 0x01,	//
+        PROG_FAZA    = 0x02,    //
+
+}WORK_STATE;
+
+
+////
+typedef enum __DK_STATE
+{
+        ALARM         = 0x00,   // запрос от АЛАРМ
+	TUMBLER       = 0x01,	// тумблеры
+        SERVICE       = 0x02,    // запросы через связь-компьютер
+	VPU           = 0x03,	// ВПУ
+	TVP           = 0x04,   // ТВП
+	PLAN          = 0x05,   // ПЛАН
+}DK_STATE;
+/////////////////////////
+
+///
+// состояние
+typedef struct __STATE
+{
+  BOOL             presence;   // присутствие состояния -
+  // состояния(запроса) может не быть,
+  BOOL             update ;    //флаг - поступил другой запрос этого уровня
+                               // ПР. тумблер ОС сменился на ЖМ
+  BOOL             set;        // флаг-установлено
+                               // состояние определено и не может быть изменено
+                               // устанавливается при начале Пром. тактов
+                               // А также обратная связь - сообщить PLAN, что
+                               // состояние установлено.
+  BOOL             connect;    // была вызвана успешно SET_NEXT_STATE
+                               //
+  /// состояния
+  WORK_STATE       work;       // что выполнять (шабл. фазу, спец. прогу ..)
+  BYTE             faza;       // номер абсолютной фазы
+  BYTE             prog;       // номер программы -1,0,1..
+  BYTE             spec_prog;  // флаг спец. программы 0,1,2
+  BYTE             prog_faza;  // номер фазы в программе
+  ///
+  WORD             len;        //длительность, если >0 - учитывается
+                               // для фаз это длительность основного такта
+  //
+  DK_STATE         source;     //источник состояния
+  DK_STATE         dk_state;   // глобальное состояние ДК при этом состоянии  ???
+  //
+  struct tm         start;
+  //SYSTEMTIME       start;     //время начала состояния
+  SYSTEMTIME       end;       //время окончания
+  //
+
+
+} STATE;
+///
+typedef struct __MODULE_STATE
+{
+        GO_STATE    STA;  //состояние
+        STATE       cur;  // то что устанавливаем в DK.NEXT
+        STATE       next; // будущее по плану
+        ///
+        BOOL        enabled;// разрешено
+
+} MODULE_STATE;
+
+
+/////////////
+// запросная структура - последние поступившие
+// формальная, говорит только о наличии запроса и что делать
+// какую фазу.программу устновить
+typedef struct __REQUEST
+{
+  STATE  ALARM;
+  STATE  TUMBLER;
+  STATE  SERVICE;
+  STATE  VPU;
+  STATE  TVP;
+  STATE  PLAN; //???
+  //
+
+
+} REQUEST;
+///////////////
+// таймеры текущего состояния
+typedef struct __CONTROLLER
+{
+        GO_STATE        STA;  //состояние
+        ///
+        DWORD           Tall;    // длина всей фазы
+        WORD            Tosn;    // длина основного такта
+        WORD            Tprom;   // длина пром тактов
+        //
+        STATES_LIGHT    napr[MaxDirects]; //текущие состояния направлений
+        //BYTE    napr[MaxDirects]; //текущие состояния направлений
+        BYTE            prom_indx[MaxDirects];  //индекс в массиве prom_takts
+        /// таймера
+        BYTE            prom_time[MaxDirects]; //таймеры
+
+
+        SYSTEMTIME       start; //время начала состояния
+        SYSTEMTIME       end;   //время окончания текущего состояния
+        //
+        int             prom_timer; //таймер
+
+        /////
+        BOOL             all_answer; // все ответили
+
+
+} CONTROLLER;
+///
+
+
+
+// Структура - ДК
+
+typedef struct
+{
+       TPROJECT            *PROJ;     //проект
+       /////////
+       DK_STATE            state;   // глобальное текущее состояние ДК
+       //std::stack<STATE>   state_stack; //стек состояний ДК
+       /////////
+       // история состояний
+       STATE            CUR;     // текущее состояние
+       STATE            OLD;     // предыдущее
+       STATE            NEXT;    //cледующее
+       /////////
+       REQUEST          requests;      //запросы
+       CONTROLLER       control;      // времянка, нижний уровень
+       /////////
+       // структуры состояний
+       MODULE_STATE      PLAN;
+       MODULE_STATE       TVP;
+       MODULE_STATE       VPU;
+       MODULE_STATE       SERVICE;
+       
+       ////////
+       TVPSOURCE        tvp; //   запросы ТВП
+       //
+       SYSTEMTIME   CT; // control time
+}__DK;
+
+
+///////////////////////////////////////
+#ifdef __cplusplus /* If this is a C++ compiler, use C linkage */
+extern "C" {
+#endif
+
+int   Init_DK();
+int   DK_MAIN();
+
+
+ extern  TPROJECT  PROJ;
+ extern __DK   DK;
+ //extern SYSTEMTIME   CT; // control time
+
+ //BOOL TIME_END();
+ //void TIME_PLUS(SYSTEMTIME &tt, SYSTEMTIME &tplus,int sec_plus);
+ //bool Compare_Times(SYSTEMTIME &tt, SYSTEMTIME &tl);
+#ifdef __cplusplus /* If this is a C++ compiler, end C linkage */
+}
+#endif
+ 
+ 
+#endif

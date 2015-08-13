@@ -1,0 +1,26 @@
+/*****************************************************************************
+*
+* © 2014 Cyber-SB. Written by Selyutin Alex.
+*
+*****************************************************************************/
+
+define memory MEM with size = 4G; // Global memory address space
+
+define region ROM = MEM:[from 0x00004000 size 0x1E000];     // 120 KiB, for firmware only. See mem_map.h file.
+define region RAM = MEM:[from 0x20000000 size 0x18000];     // 96 KiB
+
+define block HEAP with size = 0x800, alignment = 8{ };
+place in RAM {block HEAP};
+
+
+place in ROM { readonly };
+place in RAM { readwrite };
+
+//initialize by copy with packing = smallest { readwrite };
+//initialize by copy with packing = lzw { readwrite };
+
+initialize by copy { readwrite };
+do not initialize  { section .noinit };
+
+place at address MEM:0x00004000 { readonly section .intvec };
+place at address MEM:0x00004120 { readonly section .version };

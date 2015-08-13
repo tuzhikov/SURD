@@ -1,0 +1,361 @@
+/*****************************************************************************
+*
+* © 2014 Cyber-SB. Written by Selyutin Alex.
+*
+*****************************************************************************/
+
+#include <string.h>
+#include "../tnkernel/tn.h"
+#include "../spi.h"
+#include "../pins.h"
+#include "../stellaris.h"
+#include "sst25vfxxx.h"
+#include "ds1390.h"
+#include "../utime.h"
+
+
+#include "../debug/debug.h"
+
+const unsigned char true_mask[8] = {0xFF, 0x7F, 0x7F, 0x7F, 0x07, 0x3F, 0x9F, 0xFF  };
+const unsigned char true_min[8] =  {   0,    0,    0,    0,    1,    1,    1,    0  };
+const unsigned char true_max[8] =  {  99,   59,   59,   23,    7,   31,   99,   99  };
+const unsigned char max_date[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+
+#define spi_lock()             memory_spi_lock_br(g_ds1390_spi_bitrate)
+#define spi_unlock()           memory_spi_unlock()
+#define ds1390_select()        pin_off(OPIN_DS1390_CS_CLOCK)
+#define ds1390_unselect()      pin_on(OPIN_DS1390_CS_CLOCK)
+
+static unsigned long           g_ds1390_spi_bitrate;
+
+#define DS1390_BITRATE 3500000
+
+// local functions
+    
+
+
+BOOL    ds1390_time_true = FALSE;
+
+static void ds1390_rd(unsigned char* buf);
+static void ds1390_wr(unsigned char* buf);
+static unsigned char ds1390_rd_b(unsigned char addr );
+static void ds1390_wr_b(unsigned char byte, unsigned char addr);
+static char BCD_to_char(unsigned char bcd);
+static char char_to_BCD (unsigned char data);
+ char get_day(DS1390_TIME * time);
+static BOOL time_BCD_to_char(DS1390_DATA_BUF *data , DS1390_TIME *time);
+static BOOL time_char_to_BCD(DS1390_TIME *time , DS1390_DATA_BUF *data);
+
+BOOL ds1390_init(void)
+{
+    unsigned char test;
+    unsigned BOOL time_error = TRUE;
+    DS1390_DATA_BUF  ds1390_data_buf;    
+        
+    DS1390_TIME      ds1390_temp;
+    
+    dbg_printf("Initializing DS1390u...");
+    
+    g_ds1390_spi_bitrate   = DS1390_BITRATE;
+    
+    //Пробуем писать и читать
+    ds1390_wr_b(DS1390_REG_ALARM_100THS, 0x5A);
+    if (ds1390_rd_b(DS1390_REG_ALARM_100THS) != 0x5A)
+    {
+        dbg_puts("[false]");
+        return (BOOL)FALSE;      
+    }
+
+    ds1390_rd((unsigned char*)&ds1390_data_buf);
+    do
+    {
+      test = ds1390_data_buf.sec;      
+      ds1390_rd((unsigned char*)&ds1390_data_buf);
+    }
+    while(test != ds1390_data_buf.sec);
+    
+    if (ds1390_data_buf.control & 0x18)
+    {
+        dbg_printf("first start...");
+        ds1390_wr_b(DS1390_REG_CONTROL, 0x00);
+        time_error = FALSE;
+    }
+    
+    if (ds1390_data_buf.status & 0x80)
+    {
+        dbg_printf("the clock was stoped...");
+        ds1390_wr_b(DS1390_REG_STATUS, 0x00); // запустим часики
+        time_error = FALSE;
+    }
+
+    if (time_BCD_to_char(&ds1390_data_buf , &ds1390_temp))
+    {
+        ds1390_time_true = TRUE;
+    }else
+    {
+        ds1390_time_true = FALSE;
+        time_error = FALSE;
+    }
+
+    if (!time_error)
+    {
+        dbg_printf("reset time to 1.1.2014-00:00:00...");
+        ds1390_temp.msec = 0;
+        ds1390_temp.sec = 0;
+        ds1390_temp.min = 0;
+        ds1390_temp.hour = 0;
+        ds1390_temp.date = 1;
+        ds1390_temp.month = 1;
+        ds1390_temp.year = 2014;
+        SetTime_DS1390(&ds1390_temp);
+    }
+    
+    if (ds1390_data_buf.trickle_charger != 0xA9)
+        ds1390_wr_b(DS1390_REG_TRICKLE, 0xA9); // включим подзарядку батарейки
+    
+    // Настроить прерывания на DS1390
+    MAP_IntEnable(INT_GPIOA);
+    MAP_GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_PIN_7, GPIO_FALLING_EDGE);
+    MAP_GPIOPinIntEnable(GPIO_PORTA_BASE, GPIO_PIN_7); 
+    
+    
+    
+    dbg_puts("[done]");
+    return (BOOL)TRUE;
+}
+
+
+BOOL GetTime_DS1390(DS1390_TIME * time)
+{
+    DS1390_DATA_BUF  ds1390_data_buf;
+    unsigned char test;
+    
+    ds1390_rd((unsigned char*)&ds1390_data_buf);
+    
+    do{
+        test = ds1390_data_buf.sec;      
+        ds1390_rd((unsigned char*)&ds1390_data_buf);
+    }while(test != ds1390_data_buf.sec);
+    
+    if (!time_BCD_to_char( &ds1390_data_buf , time))
+        ds1390_time_true = FALSE;
+        
+    return ds1390_time_true;
+}
+
+
+BOOL SetTime_DS1390(DS1390_TIME * time)
+{
+    DS1390_DATA_BUF time_BCD;
+    char i;
+    
+    if (time->msec >=1000 || time->sec >=60 || time->min >=60 || time->date < 1 || time->date > 31
+        || time->month < 1 || time->month > 12 || (time->year > 99 && time->year < 2000) || (time->year > 2000 && time->year > 2199) )
+    return FALSE;
+
+    if (time->month == 2 && (time->year % 4 == 0 && time->year % 100 != 0 || time->year % 400 == 0))
+    {
+        if (time->date > max_date[time->month-1]+1)
+            return FALSE;
+    }else
+        if (time->date > max_date[time->month-1])
+            return FALSE;    
+    
+    ds1390_rd((unsigned char *)&time_BCD);
+    time_char_to_BCD(time , &time_BCD);
+    
+    do{
+        ds1390_wr((unsigned char*)&time_BCD);
+        i = ds1390_rd_b(DS1390_REG_SECONDS);
+    }while (i != time_BCD.sec);
+    
+    return TRUE;
+}
+
+
+void DS1390_int_handler(void)
+{
+  
+}
+
+static void ds1390_rd(unsigned char* buf)
+{
+    unsigned char len = sizeof (DS1390_DATA_BUF);
+  
+    spi_lock();
+    ds1390_select();
+
+    memory_spi_rw(0x00);
+    while (len--)
+        *buf++ = memory_spi_rw(0xFF);
+
+    ds1390_unselect();
+    spi_unlock();
+}
+
+static void ds1390_wr(unsigned char* buf)
+{
+    unsigned char len = sizeof (DS1390_DATA_BUF);
+  
+    spi_lock();
+    ds1390_select();
+    
+    memory_spi_rw(0x80);
+
+    while (len--)
+    {  
+        memory_spi_rw(*buf++);
+    }
+
+    ds1390_unselect();
+    spi_unlock();
+}
+
+
+static void ds1390_wr_b(unsigned char addr, unsigned char byte )
+{
+    spi_lock();
+    ds1390_select();
+    
+    memory_spi_rw(0x80 | addr);
+    memory_spi_rw(byte);
+
+    ds1390_unselect();
+    spi_unlock();
+}
+
+static unsigned char ds1390_rd_b(unsigned char addr )
+{
+    unsigned char byte;
+    spi_lock();
+    ds1390_select();
+    
+    memory_spi_rw(addr);
+    byte = memory_spi_rw(0xFF);
+
+    ds1390_unselect();
+    spi_unlock();
+    return byte;
+}
+
+static BOOL time_BCD_to_char(DS1390_DATA_BUF *data , DS1390_TIME *time)
+{
+    
+    unsigned char i;
+    signed char b;
+    
+    for (i =0; i<sizeof(true_mask); i++)
+    {
+        b = BCD_to_char(*(((unsigned char *)data)+i) & true_mask[i]);
+        if (b == -1 || b<true_min[i] || (b>true_max[i]))
+            return FALSE;
+        *(((unsigned char *)data)+i) = b;
+    }
+    
+    time->msec = data->msec*10;
+    time->sec  = data->sec;
+    time->min  = data->min;
+    time->hour = data->hour;
+    time->day  = data->day;
+    time->date = data->date;
+    time->month= data->month;
+    time->year = data->year;
+    
+    
+    if (time->month > 80)
+    {
+        time->year +=2100;
+        time->month -= 80;
+    }
+    else
+        time->year +=2000;
+    
+    
+    if (get_day(time) != time->day)
+        return FALSE;
+    
+    if (time->month == 2 && (time->year % 4 == 0 && time->year % 100 != 0 || time->year % 400 == 0))
+    {
+        if (time->date > max_date[time->month]+1)
+            return FALSE;
+    }else
+        if (time->date > max_date[time->month])
+            return FALSE;
+    
+    return TRUE;
+}
+
+
+static BOOL time_char_to_BCD(DS1390_TIME *time , DS1390_DATA_BUF *data)
+{
+    data->msec = char_to_BCD(time->msec);
+    data->sec = char_to_BCD(time->sec);
+    data->min = char_to_BCD(time->min);
+    data->hour = char_to_BCD(time->hour);
+    data->day = get_day(time);
+    data->date = char_to_BCD(time->date);
+    data->month = char_to_BCD(time->month);
+    data->year = char_to_BCD(time->year%100);
+    
+    if (time->year >= 2100)
+        data->month |= 0x80;
+    
+   return TRUE;
+}
+
+static char BCD_to_char(unsigned char bcd)
+{
+    unsigned char t1 = bcd >>4;
+    unsigned char t2 = bcd & 0x0F;    
+    if ((t1 >= 0x0A) || (t2 >= 0x0A))
+        return -1;
+    
+    return (bcd>>4)*10 + (bcd & 0x0F);
+}
+
+static char char_to_BCD (unsigned char data)
+{
+    if (data > 99)
+        return -1;
+    
+    return ((data/10)<<4)+(data%10);
+}
+
+ char get_day(DS1390_TIME * time)
+{
+    int a = (14 - time->month) / 12;
+    int y = time->year - a;
+    int m = time->month + 12 * a - 2;
+    return 1 + (7000 + (time->date + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12)) % 7; 
+}
+
+/////////////////
+  char get_week_num(DS1390_TIME * time)
+{
+    int date = time->date;//StrToInt(Form1->Edit2->Text);
+    int month= time->month;//StrToInt(Form1->Edit3->Text);
+    int year = time->year;//StrToInt(Form1->Edit4->Text);
+    //
+    int a = (14 - month) / 12;
+    int y = year +4800 - a;
+    int m = month + 12 * a -3;
+    //
+    int iJ = date;
+    iJ = iJ + (153*m +2)/5;
+    iJ = iJ +365*y;
+    iJ += y/4;
+    iJ -= y/100;
+    iJ+=y/400;
+    iJ-=32045;
+    /////
+    int i4 = (iJ + 31741 - (iJ % 7))% 146097 % 36524 %1461;
+    int il = i4/1460;
+    int id1 = ((i4-il) % 365) + il;
+      unsigned char WN= (id1/7) + 1;;
+    ///
+    return (WN);
+    
+  
+}
+////
