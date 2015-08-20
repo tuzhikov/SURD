@@ -219,9 +219,10 @@ snprintf(buf, 128, "D1: %s, %s, %s \nD2: %s, %s, %s\n",
              text_light[(light&DIRECT2)>>8], text_light[(light&WALKER2)>>12], text_light[(light&ARROW2)>>14]);
 }
 //------------------------------------------------------------------------------
+// эта функция используеться в прерывании ds1390.c
 void Light_set_event(void)
 {
-tn_event_iset(&g_light_evt, EVENT_SINHRO_TIME);
+tn_event_iset(&g_light_evt,EVENT_SINHRO_TIME);
 DS_INTS_COUNT++;
 }
 //------------------------------------------------------------------------------
@@ -236,19 +237,20 @@ SET_OUTPUTS();
 // Save Last Error Time
 static void Save_LET(void)
 {
-        DS1390_TIME time;
-        //
-        GetTime_DS1390(&time);
-        //
-        L_ERR_TIME.tm_hour = time.hour;
-        L_ERR_TIME.tm_mday = time.date;
-        L_ERR_TIME.tm_min = time.min;
-        L_ERR_TIME.tm_sec = time.sec;
-        L_ERR_TIME.tm_mon = time.month;
-        L_ERR_TIME.tm_year = time.year;
+DS1390_TIME time;
+//
+GetTime_DS1390(&time);
+//
+L_ERR_TIME.tm_hour = time.hour;
+L_ERR_TIME.tm_mday = time.date;
+L_ERR_TIME.tm_min  = time.min;
+L_ERR_TIME.tm_sec  = time.sec;
+L_ERR_TIME.tm_mon  = time.month;
+L_ERR_TIME.tm_year = time.year;
 }
 //------------------------------------------------------------------------------
 // проверка конфликтов каналов
+// return false - valid true - invalid
 static bool Check_Chan(void)
 {
     char buf[60];
@@ -258,15 +260,15 @@ static bool Check_Chan(void)
     RED_PORT_ERR=0;
     BOOL power_valid=true;
     chan_faults=FT_NO;
-    int ic_new;
+    //int ic_new;
     //
-    Check_Channels();
+    Check_Channels(); // call adc.c
     //
     //Validate power
-         if ((sens_zero_count[SENS_N-1]< 100) && (sens_plus_count[SENS_N-1]<100))
+    if((sens_zero_count[SENS_N-1]< 100) && (sens_plus_count[SENS_N-1]<100))
            power_valid=false;
-         //sens_count
-         if ((sens_zero_count[SENS_N-1] + sens_plus_count[SENS_N-1]) > (sens_count+5))
+    //sens_count
+    if ((sens_zero_count[SENS_N-1] + sens_plus_count[SENS_N-1]) > (sens_count+5))
            power_valid=false;
 
     //
@@ -289,7 +291,7 @@ static bool Check_Chan(void)
         U_STAT_PW_last=false;
       }
     }
-    //////////////////////
+    //
     if (!power_flag)
        return (false);
     ///
@@ -298,14 +300,11 @@ static bool Check_Chan(void)
       light_time_out--;
       return (false);
     }
-
-
     if (U_STAT_PW==0)
       return (false);
-    //////////////////
+    //
     if (DK[CUR_DK].test)
       return (false);
-    /////////////////
     // U sensors work
     for (int ic=0; ic<SENS_N; ic++)
     {
@@ -314,7 +313,7 @@ static bool Check_Chan(void)
            if (ic<SENS_N-1)
            {
                sta2 = (GREEN_PORT_CONF & (1<<ic))>0 ? true: false;
-               ///
+               //
                if (PROJ[CUR_DK].jornal.alarm)
                if (!DK[CUR_DK].U_sens_fault_log[ic])
                {
@@ -323,7 +322,7 @@ static bool Check_Chan(void)
                   Event_Push_Str(buf);
                   chan_faults |= FT_GREEN_SENS;
                }
-               ///
+               //
                if (sta2)
                  ret=true;
            }
@@ -333,47 +332,17 @@ static bool Check_Chan(void)
                if (!DK[CUR_DK].U_sens_power_fault_log)
                {
                   DK[CUR_DK].U_sens_power_fault_log=true;
-                  Event_Push_Str("ДАтчик напряжения не работает!");
+                  Event_Push_Str("Дачик напряжения не работает!");
                }
            }
         }
     }
-    /////////////////
+    //
     for (int ic=0; ic<8; ic++)
     {
       sta =  (U_STAT[ic]>0) ? true : false;
       sta1 = (GREEN_PORT & (1<<ic))>0 ? true : false;
       sta2 = (GREEN_PORT_CONF & (1<<ic))>0 ? true: false;
-      //sta_tra = (GREEN_PORT_TRAM & (1<<ic))>0 ? true: false;
-      ///////
-      if (sta_tra)
-      {
-        //смотрим чему соответствует
-        // КРАСНЫЙ
-        /*if (tram_green_drive_line[ic]==0)
-        {
-          ic_new = tram_green_drive_line_num[ic];
-          //sta = (I_STAT[ic_new]>0) ? true : false;
-          sta1 = (RED_PORT & (1<<ic_new))>0 ? true : false;
-        }*/
-        ///////
-        // ЗЕЛЕНЫЙ
-        /*if (tram_green_drive_line[ic]==2)
-        {
-          ic_new = tram_green_drive_line_num[ic];
-          //sta =  (U_STAT[ic_new]>0) ? true : false;
-          sta1 = (GREEN_PORT & (1<<ic_new))>0 ? true : false;
-
-        } */
-        ///////
-        // ЖЕЛТЫЙ
-        /*if (tram_green_drive_line[ic]==1)
-        {
-          ic_new = tram_green_drive_line_num[ic];
-          sta1 = (YEL_PORT & (1<<ic_new))>0 ? true : false;
-
-        }*/
-      }
       // состояния различаются
       if (sta2)
        //if (!sta_tra)
@@ -402,10 +371,9 @@ static bool Check_Chan(void)
                continue;
 
          }
-         //////////////
          //различаются  // AHTUNG
          GREEN_PORT_ERR= GREEN_PORT_ERR | (1<<ic);
-         ///////////
+
          if (PROJ[CUR_DK].jornal.alarm)
          {
            if (sta_tra)
@@ -421,42 +389,32 @@ static bool Check_Chan(void)
              snprintf(buf, 60 , "Конфликт зел., выход %u",(ic+1));
              chan_faults |= FT_GREEN_CONFL ;
            }
-           ///
-           Event_Push_Str(buf);
-         }
 
-         ///
-         ret=true;
-       }
-    }
-    for (int ic=0; ic<8; ic++)
-    {
-      sta = (I_STAT[ic]>0) ? true : false;
-      sta1 = (RED_PORT & (1<<ic))>0 ? true : false;
-      sta2 = (RED_PORT_CONF & (1<<ic))>0 ? true : false;
-      if (sta2)
-      if (sta ^ sta1)
-       {
-         //различаются AHTUNG
-         RED_PORT_ERR= RED_PORT_ERR | (1<<ic);
-         //
-         if (PROJ[CUR_DK].jornal.alarm)
-         {
-           if (sta1)
-           {
-             snprintf(buf, 60 , "КР выход %u без нагрузки",(ic+1));
-             chan_faults |= FT_RED_CONFL;
-           }
-           else
-           {
-             //snprintf(buf, 60 , "КР выход %u неисправен",(ic+1));
-             //chan_faults |= FT_RED_CHAN;
-           }
-         Event_Push_Str(buf);
+           Event_Push_Str(buf);
          }
        ret=true;
        }
     }
+for (int ic=0; ic<8; ic++)
+  {
+  sta  = (I_STAT[ic]>0)? true : false;
+  sta1 = (RED_PORT & (1<<ic))>0 ? true : false;
+  sta2 = (RED_PORT_CONF & (1<<ic))>0 ? true : false;
+  if (sta2)
+    if (sta ^ sta1){
+      //различаются AHTUNG
+      RED_PORT_ERR= RED_PORT_ERR | (1<<ic);
+      //
+      if(PROJ[CUR_DK].jornal.alarm){
+        if (sta1){
+          snprintf(buf, 60 , "КР выход %u без нагрузки",(ic+1));
+          chan_faults |= FT_RED_CONFL;
+          }
+        Event_Push_Str(buf);
+        }
+      ret=true;
+      }
+  }
 return (ret);
 }
 //------------------------------------------------------------------------------
@@ -468,22 +426,30 @@ static void DK_ALARM_OC(void)
         DK[CUR_DK].REQ.req[ALARM].presence = true;
 }
 //------------------------------------------------------------------------------
-static void DK_ALARM_YF(void)
+/*static void DK_ALARM_YF(void)
 {
         DK[CUR_DK].REQ.req[ALARM].spec_prog = SPEC_PROG_YF;
         DK[CUR_DK].REQ.req[ALARM].work = SPEC_PROG;
         DK[CUR_DK].REQ.req[ALARM].source = ALARM;
         DK[CUR_DK].REQ.req[ALARM].presence = true;
-}
-//------------------------------------------------------------------------------
+}*/
+/*----------------------------------------------------------------------------*/
+// остановка ДК авария
 void DK_HALT(void)
 {
-          LIGHT_STA = LIGHT_FAULT;
-          //pin_off(OPIN_POWER);
-          POWER_SET(false);
-          SIGNAL_OFF();
-          DK_ALARM_OC();
-          DK_MAIN();
+LIGHT_STA = LIGHT_FAULT;
+POWER_SET(false);
+SIGNAL_OFF();
+DK_ALARM_OC();
+DK_MAIN();
+}
+// запуск ДК после аварии
+void DK_RESTART(void)
+{
+LIGHT_STA = LIGHT_WORK;
+Init_DK();
+DK_MAIN();
+//tn_reset(); // сбросс CPU
 }
 //------------------------------------------------------------------------------
 // следующая попытка
@@ -492,8 +458,6 @@ static void Next_Try(bool b)
     if (!DK[CUR_DK].no_FAULT)
     if (b)
     {
-      //Event_Push_Str("ALARM");
-      //Event_Channel_Fault();
       //все отключаем
      if (reboot_tryes<PROJ[CUR_DK].guard.restarts)
      {
@@ -518,37 +482,16 @@ static void Next_Try(bool b)
         else
         {
            Save_LET();
-           //
            for (int i_dk=0; i_dk<dk_num; i_dk++)
            {
               CUR_DK = i_dk;
               //Init_DK();
-              DK_ALARM_YF();
+              //DK_ALARM_YF();
            }
-           //
            DK_MAIN();
         }
-        /////////
         Next_Try_wait = true;
         chan_faults=FT_NO;
-        //
-        //tn_task_sleep(PROJ[CUR_DK].guard.restart_interval*1000);
-        //////////
-        /*
-        for (int i_dk=0; i_dk<dk_num; i_dk++)
-        {
-          DK[i_dk].REQ.req[ALARM].presence = false;
-        }
-        light_machine.work=true;
-        //
-        if (chan_faults!=FT_RED_CONFL)
-        {
-           SIGNAL_OFF();
-           pin_on(OPIN_POWER);
-           SIGNAL_OFF();
-        }
-        */
-        //
         tn_task_sleep(100);
      }
      else
@@ -603,7 +546,8 @@ static void task_light_func(void* param)
     //
     Event_Push_Str("СТАРТ");// запись в журнал старт
     light_time_out=1;
-   for (;;)
+
+for (;;)
     {
     //считать время
     GetTime_DS1390(&time);
@@ -617,25 +561,22 @@ static void task_light_func(void* param)
     //
     if (Next_Try_wait)
        if (Seconds_Between(&L_ERR_TIME, &cur_time) >
-            PROJ[CUR_DK].guard.restart_interval)
-       {
-          for (int i_dk=0; i_dk<dk_num; i_dk++)
+            PROJ[CUR_DK].guard.restart_interval){
+       for (int i_dk=0; i_dk<dk_num; i_dk++)
           {
-              DK[i_dk].REQ.req[ALARM].presence = false;
+           DK[i_dk].REQ.req[ALARM].presence = false;
           }
           light_machine.work=true;
           //
-          if (chan_faults!=FT_RED_CONFL)
-          {
+          if (chan_faults!=FT_RED_CONFL){
              SIGNAL_OFF();
-             //pin_on(OPIN_POWER);
              POWER_SET(true);
              SIGNAL_OFF();
-           }
+             }
           //
           Next_Try_wait = false;
-       }
-       // test mode
+          }
+    // test mode
     if(DK[0].test)
       {
       if(!DK[0].test_init){
@@ -653,7 +594,9 @@ static void task_light_func(void* param)
     Check_LET();
     // work mode
     if (!light_machine.work){
-      tn_task_sleep(500);continue;}
+      tn_task_sleep(500);
+      continue;
+      }
     //machine stat
     switch (LIGHT_STA)
        {
@@ -663,28 +606,24 @@ static void task_light_func(void* param)
           //синхронизация времени GPS&RTC
           Synk_TIME();
           //проверка конфликтов каналов
-              b_ch = Check_Chan();
-              /*if(b_ch){
-                 Next_Try(b_ch);
-                 break;
-                 }*/
-              //
+          b_ch = Check_Chan();
+          if(b_ch){
+            Next_Try(b_ch);break;}
+          // основная логика работы
           DK_MAIN();
           tn_task_sleep(500);// delay 0.5S
-              //проверка конфликтов каналов
-              b_ch = Check_Chan();
-              /*if(b_ch){
-                 Next_Try(b_ch);
-                 break;
-                 }*/
-              // здесь организовано миганине силовых выходов вот так!(в проетке его нет)
-              /*for (int i_dk=0; i_dk<dk_num; i_dk++)
+          //проверка конфликтов каналов
+          b_ch = Check_Chan();
+          if(b_ch){
+            Next_Try(b_ch);break;}
+          // здесь организовано миганине силовых выходов вот так!(в проетке его нет)
+          /*for (int i_dk=0; i_dk<dk_num; i_dk++)
                 {
                 CUR_DK = i_dk; // тукущий ДК
                 Update_STATES(true);
                 } */
-              SET_OUTPUTS();
-              break;
+         SET_OUTPUTS();
+         break;
          }
        case LIGHT_FAULT:
           {

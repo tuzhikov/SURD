@@ -27,15 +27,15 @@
 
 // lwip/lwiplib.c
 #define TASK_ETH_PRI                12
-#define TASK_ETH_STK_SZ             256
+#define TASK_ETH_STK_SZ             128*8//256
 
 // ipmulticast/cmd_ch.c
 #define TASK_CMD_PRI                16
-#define TASK_CMD_STK_SZ             256
+#define TASK_CMD_STK_SZ             128*4//256
 //
 // ipmulticast/cmd_ch.c
 #define TASK_CMD_LED_PRI            25
-#define TASK_CMD_STK_LED_SZ         256
+#define TASK_CMD_STK_LED_SZ         128 //256
 
 // adcc.c
 #define TASK_ADC_PRI                29
@@ -47,7 +47,7 @@
 
 // pins.c
 #define TASK_PINS_PRI               25
-#define TASK_PINS_STK_SZ            256
+#define TASK_PINS_STK_SZ            128//256
 
 
 // light/light.c

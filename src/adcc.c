@@ -310,13 +310,10 @@ void IntGPIO_PW_CONTR(void)
   unsigned char status = GPIOPinIntStatus(GPIO_PORTH_BASE, true);
   cur_time = hw_time();
 
-  //unsigned long pin;
-  //int i_pos;
   static unsigned long diff, cur_t;
   cur_t =  MAP_TimerValueGet(TIMER0_BASE,TIMER_A);
-  //cur_t = MAP_SysTickValueGet();
-  ///
-       if (status & GPIO_PIN_7)
+
+   if(status & GPIO_PIN_7)
        {
           if (!pin_rd(IPIN_PW_CONTR))
           {
@@ -328,16 +325,11 @@ void IntGPIO_PW_CONTR(void)
               udc_pos_PW++;
               if (udc_pos_PW >= UDC_BUF_N)
                 udc_pos_PW=0;
-              ///
+
               if (u_last_change_PW > cur_t)
                 diff = u_last_change_PW- cur_t;
               else
-                diff = 0;//u_last_change[ic] + 0xFFFFFFFF-cur_t;
-              ///////////
-               //Filter
-              //if (diff<100000)
-              //  continue;
-
+                diff = 0;
 
               udc_data_PW[udc_pos_PW] = diff;
           }
@@ -345,29 +337,6 @@ void IntGPIO_PW_CONTR(void)
           ///
           GPIOPinIntClear(GPIO_PORTH_BASE, GPIO_PIN_7);
        }
-       //////////////////
-
-       // проверяем уровень на входе, если высокий. то
-     //
-     /////////
-
-
-  /////////////////////
-       /*
-  //чистим
-    if ((cur_time - u_time_dif_PW) > 30)
-    {
-       udc_pos_PW++;
-       if (udc_pos_PW >= UDC_BUF_N)
-                udc_pos_PW=0;
-       //////////////
-       udc_data_PW[udc_pos_PW] = 0;
-    }
-       */
-  ////////////////////
-
-
-
 }
 //------------------------------------------------------------------------------
 //прерывания от ШИМА напряжения на зеленых
@@ -588,45 +557,30 @@ void Calc_Middle_U()
 // 0-OK
 int Check_Channels()
 {
-  // = hw_time();
-    /// проверяем ток
   cur_time  = hw_time();
-  ///
+  //
   Calc_Middle();
-  //Calc_Middle_U();
-    /// ток, красные
-     for (int ic=0; ic< I_CH_N; ic++)
+  // ток, красные
+  for (int ic=0; ic< I_CH_N; ic++)
      {
         if (adc_middle[ic] < 800)
           I_STAT[ic]=true;
         else
           I_STAT[ic]=false;
      }
-     ////
-     // проверяем наgряжение
-     for (int ic=0; ic< U_CH_N; ic++)
+  // проверяем наgряжение
+  for (int ic=0; ic< U_CH_N; ic++)
      {
        if (0.95*sens_zero_count[ic]>sens_plus_count[ic])
             U_STAT[ic]=true;
        else
             U_STAT[ic]=false;
-       //if ((cur_time - u_time_dif[ic]) > ADC_RED_POROG)
-       //if (udc_middle[ic]>300000)
      }
-     ///
-     //if (udc_middle_PW>550000)
-     if (0.95*sens_zero_count[SENS_N-1]>sens_plus_count[SENS_N-1])
+  if (0.95*sens_zero_count[SENS_N-1]>sens_plus_count[SENS_N-1])
           U_STAT_PW=true;
         else
           U_STAT_PW=false;
-
-     //U_STAT_PW = U_STAT[7];
-     //U_STAT_PW = true;
-
-     //
-
-
-    return (0);
+return (0);
 }
 //------------------------------------------------------------------------------
 void Check_Power()

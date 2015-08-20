@@ -365,37 +365,34 @@ void hw_watchdog_clear()
     g_watchdog_clear = TRUE;
 }
 
-// interrupts
-
+/* interrupts ----------------------------------------------------------------*/
 void hw_ethernet_int_handler()
 {
     lwip_eth_int_processing();
     tn_int_exit();
 }
-//-----------------------------------------
+/*----------------------------------------------------------------------------*/
 void hw_USB0DeviceIntHandler()
 {
     //lwip_eth_int_processing();
 //    USB0DeviceIntHandler();
     tn_int_exit();
 }
-//-----------------------------------------
-
-
+/*----------------------------------------------------------------------------*/
 void hw_timer0a_int_handler()
 {
     MAP_TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
     tn_event_iset(g_timer0a_evt, g_timer0a_evt_pattern);
     tn_int_exit();
 }
-
+/*----------------------------------------------------------------------------*/
 void hw_timer1a_int_handler()
 {
     MAP_TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
     tn_event_iset(g_timer1a_evt, g_timer1a_evt_pattern);
     tn_int_exit();
 }
-
+/*----------------------------------------------------------------------------*/
 void hw_watchdog_int_handler()
 {
     //MAP_WatchdogIntClear(WATCHDOG0_BASE);
@@ -410,46 +407,39 @@ void hw_watchdog_int_handler()
 #endif // DEBUG
         tn_reset();
     }
-
-
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_adc_seq0_int_handler()
 {
     adc_seq0_int_handler();
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_adc_seq1_int_handler()
 {
     adc_trigg++;
     adc0_seq1_int_handler();
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_uart0_int_handler()
 {
     uart0_int_handler();
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_uart1_int_handler()
 {
     uart1_int_handler();
     tn_int_exit();
 }
-
+/*----------------------------------------------------------------------------*/
 void hw_uart2_int_handler()
 {
 //    uart2_int_handler();
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_portA_int_handler()
 {
     unsigned char mask = GPIOPinIntStatus(GPIO_PORTA_BASE, NULL);
@@ -458,10 +448,9 @@ void hw_portA_int_handler()
         MAP_GPIOPinIntClear(GPIO_PORTA_BASE, GPIO_PIN_7 );
         DS1390_int_handler();
     }
-
     tn_int_exit();
 }
-
+/*----------------------------------------------------------------------------*/
 void hw_portJ_int_handler()
 {
     /*
@@ -475,15 +464,13 @@ void hw_portJ_int_handler()
     IntGPIO_U();
     tn_int_exit();
 }
-
+/*----------------------------------------------------------------------------*/
 void hw_portH_int_handler()
 {
-
     IntGPIO_PW_CONTR();
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_portG_int_handler()
 {
     unsigned char mask = GPIOPinIntStatus(GPIO_PORTG_BASE, NULL);
@@ -495,22 +482,18 @@ void hw_portG_int_handler()
 
     tn_int_exit();
 }
-
-
+/*----------------------------------------------------------------------------*/
 void hw_portC_int_handler()
 {
     unsigned char mask = GPIOPinIntStatus(GPIO_PORTC_BASE, NULL);
+
     if (mask & GPIO_PIN_4)
     {
-        MAP_GPIOPinIntClear(GPIO_PORTC_BASE, GPIO_PIN_4 );
-        //RF_ZB_int_handler();
+    MAP_GPIOPinIntClear(GPIO_PORTC_BASE, GPIO_PIN_4 );
     }
-
     if (mask & GPIO_PIN_5)
     {
-        MAP_GPIOPinIntClear(GPIO_PORTC_BASE, GPIO_PIN_5 );
-        //RF_868LP_int_handler();
+    MAP_GPIOPinIntClear(GPIO_PORTC_BASE, GPIO_PIN_5 );
     }
-
     tn_int_exit();
 }

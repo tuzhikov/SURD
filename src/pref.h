@@ -38,10 +38,14 @@ enum pref_l_idx
 /*----------------------------------------------------------------------------*/
 void pref_init();
 void pref_reset();
+void pref_reset_default();
 long pref_get_long(enum pref_l_idx idx);
 void pref_set_long(enum pref_l_idx idx, long value);
 // задать новые параметры связи для ethernet
 void saveDatePorojectIP(void);
+//void setParametrIP(struct ip_addr* ipaddr, struct ip_addr* netmask, struct ip_addr* gw);
+void setFlagDefaultIP(const BOOL fl);
+BOOL getFlagDefaultIP(void);
 //void pref_data_wr(unsigned short addr, unsigned char* data, unsigned short len);
 //void pref_data_rd(unsigned short addr, unsigned char* dest, unsigned short len);
 

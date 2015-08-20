@@ -72,6 +72,7 @@ static err_t udp_send_config(struct cmd_raw* cmd_p);
 static err_t udp_send_surd(struct cmd_raw* cmd_p);
 
 static struct cmd_raw debug_cmd_p;
+
 static BOOL debugee_flag=false;
 /*----------------------------------------------------------------------------*/
 /*Functions*/
@@ -109,12 +110,11 @@ udp_send_surd(cmd_p);
 // пришел ответ по СУРД, только запись отправки нет
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-if(argc<4) // пришло не то
-    {
-    udp_send_wrong_par(cmd_p);
+if(argc<4){ // пришло не то
     return;
     }
 unsigned long idp,pass,id,ver;
+
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
   sscanf(argv[1],"%u",&id);
@@ -128,9 +128,6 @@ if(strcmp(argv[4],"PASSW:")==0){
 if(strcmp(argv[6],"VER:")==0){
   sscanf(argv[7],"%u",&ver);
   }
-/*if(strcmp(argv[8],"VPU:")==0){
-  //sscanf(argv[9],"%u",&vpu);
-  }*/
 checkMessageDk((BYTE)id,pass,idp); // устанвоим статусы
 }
 // пришла информация о фазах, работаем с ВПУ----------------------------------//
@@ -203,69 +200,36 @@ void cmd_set_func(struct cmd_raw* cmd_p, int argc, char** argv)
 /////////////////
 void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-    ///
-/*
-    if (strcmp(argv[0], "OS") == 0) //
+  if (strcmp(argv[0], "OS") == 0) //
     {
-        DK[CUR_DK].REQ.req[SERVICE].spec_prog = SPEC_PROG_OC;
-        DK[CUR_DK].REQ.req[SERVICE].work = SPEC_PROG;
-        DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
-
-        DK[CUR_DK].REQ.req[SERVICE].presence = true;
-        udp_send_success(cmd_p);
-
+    DK_Service_OS();
+    udp_send_success(cmd_p);
+    return;
     }
     else if (strcmp(argv[0], "KK") == 0)
     {
-        DK[CUR_DK].REQ.req[SERVICE].spec_prog = SPEC_PROG_KK;
-        DK[CUR_DK].REQ.req[SERVICE].work = SPEC_PROG;
-        DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
-        //
-        DK[CUR_DK].REQ.req[SERVICE].presence = true;
-        REQUESTS();
-        MODEL();
-        //
-           udp_send_success(cmd_p);
-    }
-    else if (strcmp(argv[0], "YF") == 0)
-    {
-        DK[CUR_DK].REQ.req[SERVICE].spec_prog = SPEC_PROG_YF;
-        DK[CUR_DK].REQ.req[SERVICE].work = SPEC_PROG;
-        DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
-        //
-        DK[CUR_DK].REQ.req[SERVICE].presence = true;
-        REQUESTS();
-        MODEL();
-        //
-           udp_send_success(cmd_p);
+    DK_Service_KK();
+    udp_send_success(cmd_p);
+    return;
     }
     else if (strcmp(argv[0], "undo") == 0)
     {
-          memset(&(DK[CUR_DK].REQ.req[SERVICE]),0,sizeof(STATE));
-          udp_send_success(cmd_p);
-    }
-    else if (strcmp(argv[0], "faza") == 0)
-    {
-
-       unsigned long faz_i;
-       //
-       if (sscanf(argv[1], "%d", &faz_i) == 1)
-       {
-          DK[CUR_DK].REQ.req[SERVICE].work = SINGLE_FAZA;
-          if (faz_i)
-            faz_i--;
-          //
-            DK[CUR_DK].REQ.req[SERVICE].faza = faz_i;
-          DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
-          //
-          DK[CUR_DK].REQ.req[SERVICE].presence = true;
-          udp_send_success(cmd_p);
-       }
-    }
-  */
-    //
+    DK_Service_undo();
     udp_send_success(cmd_p);
-    //process_light_cmd(cmd_p, argv[0], argv[1]);
+    return;
+    }
+    else if (strcmp(argv[0], "phase") == 0)
+    {
+    unsigned long numPhase;
+    if (sscanf(argv[1], "%d", &numPhase) == 1){
+      if(numPhase)numPhase--;
+      DK_Service_faza(numPhase);
+      udp_send_success(cmd_p);
+      return;
+      }
+    }
+//answer cmd light
+udp_send_wrong_par(cmd_p);
 }
 //команда сброса ДК
 void cmd_reboot_func(struct cmd_raw* cmd_p, int argc, char** argv)
@@ -276,23 +240,20 @@ void cmd_reboot_func(struct cmd_raw* cmd_p, int argc, char** argv)
 //
 void cmd_prefReset_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-  if (!DK[0].tumbler)
-  {
-      udp_sendstr(cmd_p, "NO TUMBLER!!");
+ if((!DK[CUR_DK].OSHARD)&&(!DK[CUR_DK].OSSOFT)){
+      udp_sendstr(cmd_p, "NO TUMBLER or OS!");
       return;
+      }
+  //
+  if (argc == 1){
+  unsigned par;
+  if ((sscanf(argv[0], "%u", &par) == 1) && par ==255){
+      udp_sendstr(cmd_p, "SUCCESS: FLASH was Erased...\n");
+      flash_erase();
+      return;
+      }
   }
-  ////////////////////////
-    if (argc == 1)
-    {
-        unsigned par;
-        if ((sscanf(argv[0], "%u", &par) == 1) && par ==255)
-        {
-            udp_sendstr(cmd_p, "SUCCESS: FLASH was Erased...\n");
-            flash_erase();
-            return;
-        }
-    }
-    udp_send_wrong_par(cmd_p);
+udp_send_wrong_par(cmd_p);
 }
 //------------------------------------------------------------------------------
 void cmd_event_func(struct cmd_raw* cmd_p, int argc, char** argv)
@@ -387,10 +348,10 @@ void cmd_test_func(struct cmd_raw* cmd_p, int argc, char** argv)
 void cmd_chan_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
     bool b_ch;
-    ///
+    //
     if (!DK[0].test)
       return;
-    ////
+    //
     if (strcmp(argv[2], "on") == 0)
       b_ch=true;
     else
@@ -398,7 +359,7 @@ void cmd_chan_func(struct cmd_raw* cmd_p, int argc, char** argv)
       b_ch=false;
     else
        return ;
-    ////////
+    //
     unsigned group;
     unsigned char col = argv[1][0];
     unsigned char col_n;
@@ -411,16 +372,10 @@ void cmd_chan_func(struct cmd_raw* cmd_p, int argc, char** argv)
           case 'g': col_n=2; break;
           default:  return; break;
         }
-        ///
+        // set PORT
         Clear_LED();
         Set_LED(group,col_n,  b_ch);
         SET_OUTPUTS();
-        //tn_task_sleep(1000);
-        //
-        //Set_LED(group,col_n,false);
-        //SET_OUTPUTS();
-        //tn_task_sleep(500);
-        ///
         udp_send_success(cmd_p);
     }
 }
@@ -485,13 +440,12 @@ err1:
 // Запись проекта во FLASH по произвольному адресу
 void cmd_pflashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-    if (DK[0].tumbler)
+if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT))
     {
       cmd_flashwr_func(cmd_p, argc,argv);
     }
     else
-      udp_sendstr(cmd_p, "NO TUMBLER!!");
-
+      udp_sendstr(cmd_p, "NO TUMBLER or OS!");
 }
 //------------------------------------------------------------------------------
 // программирвоание проекта
@@ -501,11 +455,10 @@ void cmd_proj_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
   char s_addr[10];
   int addr;
   //////////////
-  if (!DK[0].tumbler)
-  {
-      udp_sendstr(cmd_p, "NO TUMBLER!!");
-      return;
-  }
+  if((!DK[CUR_DK].OSHARD)&&(!DK[CUR_DK].OSSOFT)){
+    udp_sendstr(cmd_p, "NO TUMBLER or OS!");
+    return;
+    }
   //////////////
   if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
   {
@@ -539,14 +492,12 @@ void cmd_progs_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
   char* l_argv[3];
   char s_addr[10];
   int addr;
-  //////////////
-  if (!DK[0].tumbler)
-    {
-      udp_sendstr(cmd_p, "NO TUMBLER!!");
-      return;
+  //
+  if((!DK[CUR_DK].OSHARD)&&(!DK[CUR_DK].OSSOFT)){
+    udp_sendstr(cmd_p, "NO TUMBLER or OS!");
+    return;
     }
-    //////////////
-   //////////////
+  //
   if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
   {
     udp_sendstr(cmd_p, "Error: Incorrect address");
@@ -571,8 +522,6 @@ void cmd_progs_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
   {
     cmd_flashwr_func(cmd_p, 3, l_argv);
   }
-  ////
-
 }
 
 //------------------------------------------------------------------------------
@@ -1059,15 +1008,10 @@ static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* 
     {
         if (strcmp(val, "on") == 0)
         {
-            if (DK[0].tumbler)
+          if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT))
             {
                DK[0].test = true;
-               //DK_Service_OS();
-               ///
-               //
                SIGNAL_OFF();
-               //
-
                udp_send_success(cmd_p);
             }
         }
@@ -1075,10 +1019,6 @@ static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* 
         {
             DK[0].test = false;
             DK[0].test_init=false;
-            //Set_Test();
-            //
-            //DK_Service_undo();
-            //
             udp_send_success(cmd_p);
         }
         else
@@ -1087,7 +1027,6 @@ static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* 
     else if (strcmp(par, "init") == 0)
     {
             evt_fifo_clear();
-            //
             udp_send_success(cmd_p);
 
     }
@@ -1096,13 +1035,11 @@ static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* 
         if (strcmp(val, "on") == 0)
         {
             pin_on(OPIN_POWER);
-            //pref_set_long(PREF_L_NET_MODE, NET_MODE_DHCP);
             udp_send_success(cmd_p);
         }
         else if (strcmp(val, "off") == 0)
         {
             pin_off(OPIN_POWER);
-            //pref_set_long(PREF_L_NET_MODE, NET_MODE_STATIC_IP);
             udp_send_success(cmd_p);
         }
         else
@@ -1480,62 +1417,43 @@ static err_t udp_send_lines(struct cmd_raw* cmd_p)
 //------------------------------------------------------------------------------
 static err_t udp_send_state(struct cmd_raw* cmd_p,int argc, char** argv)
 {
-    char buf[128];
-    int curr_dk=0;
-    //////////////////
-    if (argc==2)
-    {
-       if (sscanf(argv[1], "%u", &curr_dk) == 1)
-       {
-          if (curr_dk>DK_N)
-            curr_dk=0;
-          //
-          if (curr_dk)
-            curr_dk--;
-       }
+char buf[128];
+int curr_dk=0;
 
+if(argc==2){
+  if(sscanf(argv[1], "%u", &curr_dk) == 1){
+    if (curr_dk>DK_N)   curr_dk=0;
+    if (curr_dk)        curr_dk--;
     }
-    ////////////////
-        if (DK[curr_dk].CUR.work == PROG_FAZA)
-        {
-          snprintf(buf, sizeof(buf), "SUCCESS:WORK=PROGRAM PROGRAM=%d PROG_FAZA=%d",
+  }
+//
+if(DK[curr_dk].CUR.work == PROG_FAZA){
+  snprintf(buf, sizeof(buf), "SUCCESS:WORK=PROGRAM PROGRAM=%d PROG_FAZA=%d",
              (DK[curr_dk].CUR.prog+1),(DK[curr_dk].CUR.prog_faza+1));
-
-        }
-        //
-        if (DK[curr_dk].CUR.work == SINGLE_FAZA)
-        {
-           snprintf(buf, sizeof(buf), "SUCCESS:WORK=SINGLE_FAZA SINGLE_FAZA=%d",
+  }
+//
+if(DK[curr_dk].CUR.work == SINGLE_FAZA){
+  snprintf(buf, sizeof(buf), "SUCCESS:WORK=SINGLE_FAZA SINGLE_FAZA=%d",
              (DK[curr_dk].CUR.faza+1));
-
-           //S_W("Oaae. oaca=" + IntToStr(DK[CUR_DK].CUR.faza+1));
-        }
-        //
-        if (DK[curr_dk].CUR.work == SPEC_PROG)
-        {
-          //snprintf(buf, sizeof(buf), "SUCCESS:WORK=SPEC_PROG SPEC_PROG=%d",
-          //   (DK[CUR_DK].CUR.spec_prog));
-          strcpy(buf,"SUCCESS:WORK=SPEC_PROG SPEC_PROG=");
-          if (DK[curr_dk].CUR.spec_prog==1)
-            strcat(buf,"FLASH");
-          //
-          if (DK[curr_dk].CUR.spec_prog==2)
-            strcat(buf,"OFF");
-          //
-          if (DK[curr_dk].CUR.spec_prog==0)
-            strcat(buf,"KK");
-          //
-        }
-        //
-        strcat(buf," LEVEL=");
-        if (DK[curr_dk].CUR.source==ALARM) strcat(buf,"ALARM");
-        if (DK[curr_dk].CUR.source==TUMBLER) strcat(buf,"TUMBLER");
-
-        if (DK[curr_dk].CUR.source==SERVICE) strcat(buf,"SERVICE");
-        if (DK[curr_dk].CUR.source==VPU) strcat(buf,"VPU");
-        if (DK[curr_dk].CUR.source==TVP) strcat(buf,"TVP");
-        if (DK[curr_dk].CUR.source==PLAN) strcat(buf,"PLAN");
-
+  }
+//
+if(DK[curr_dk].CUR.work == SPEC_PROG){
+  strcpy(buf,"SUCCESS:WORK=SPEC_PROG SPEC_PROG=");
+  if(DK[curr_dk].CUR.spec_prog==1) strcat(buf,"FLASH");
+  if(DK[curr_dk].CUR.spec_prog==2) strcat(buf,"OFF");
+  if(DK[curr_dk].CUR.spec_prog==0) strcat(buf,"KK");
+  }
+// add level
+strcat(buf," LEVEL=");
+if(DK[curr_dk].CUR.source==ALARM)   strcat(buf,"ALARM");
+if(DK[curr_dk].CUR.source==TUMBLER) strcat(buf,"TUMBLER");
+if(DK[curr_dk].CUR.source==SERVICE) strcat(buf,"SERVICE");
+if(DK[curr_dk].CUR.source==VPU)     strcat(buf,"VPU");
+if(DK[curr_dk].CUR.source==TVP)     strcat(buf,"TVP");
+if(DK[curr_dk].CUR.source==PLAN)    strcat(buf,"PLAN");
+// add status SURD
+strcat(buf," SURD=");
+// send UDP
 return udp_sendstr(cmd_p, buf);
 }
 /*----------------------------------------------------------------------------*/
@@ -1604,6 +1522,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const TVPU *vpu = retDateVPU();
     char tmpbuff[20];
     retTextStatusVPU(tmpbuff,vpu->satus);
+    const bool StatusDK = getAllDk();
 
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
@@ -1612,13 +1531,13 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "PASSW: %u\r\n"
         "VER:   %u\r\n"
         "VPU:   %s\r\n"
-        "SURD:  %u\r\n",
+        "SURD:  %s\r\n",
         prg->surd.ID_DK_CUR,
         idp,
         prg->surd.Pass,
         VER_MAJOR,
         tmpbuff,
-        getAllDk());
+        StatusDK?"ОК":"NO");
 
 char BuffTemp[70];
 strcpy(BuffTemp,"BUTTON:");

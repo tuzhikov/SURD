@@ -15,6 +15,7 @@
 #include "../event/evt_fifo.h"
 #include "../debug/debug.h"
 #include "../dk/dk.h"
+
 /*----------------------------------------------------------------------------*/
 /**/
 /*----------------------------------------------------------------------------*/
@@ -78,7 +79,7 @@ static void create_cmd_nfo_list()
     //commands net udp
     CMD_NFO_PUSH_BACK("allpollingdk",&cmd_polling_func,"");
     CMD_NFO_PUSH_BACK("setphaseudp",&cmd_setphase_func,"");
-    CMD_NFO_PUSH_BACK("answersurd",&cmd_answer_surd_func,"");
+    CMD_NFO_PUSH_BACK("SUCCESS:",&cmd_answer_surd_func,""); // проверяем ответы
     //commands configurator
     CMD_NFO_PUSH_BACK("ifconfig", &cmd_ifconfig_func,"");
     CMD_NFO_PUSH_BACK("config", &cmd_config_func, "");
@@ -386,51 +387,56 @@ static void PollingDkLine(const TPROJECT *ret)
 {
 char BuffCommand[30];
 const WORD IPPORT = ret->surd.PORT;
-static STEP_NET step = NUL;
-static BYTE count = 0,countError = 0,countOk = 0;
+static Type_Step_Machine step = Null;
+static BYTE count = 0,countError = 0,countOk = 0,countClear = 0;
 static bool fMessageErr = false,fMessageOk = false;
 
 switch(step)
   {
-  case NUL: // отправляем
-    clearAllStatusDk(); // нулим весь статус
+  case Null: // отправляем
+    if(!countClear){// нулим весь статус
+        countClear=ret->surd.Count;
+        clearAllStatusDk();
+        }else
+        countClear--;
     CollectCmdBroadCast(BuffCommand,ALL_DK); //
     DK[0].StatusSurd.CountRequests++; // считаем количество запросов
     udp_sendStrBroadcast(BuffCommand,IPPORT);
-    step = ONE;
+    step = One;
     return;
-  case ONE:
+  case One:
     count = 0;
     if(retRequestsVPU()==0){ // поверяем запросы по ВПУ
       // запросов по ВПУ нет,
       if(getAllDk()){
         if(++countOk>=ret->surd.Count){
-          countError = 0;
+          countOk = countError = 0;
           fMessageErr = false;
           if(!fMessageOk){Event_Push_Str("Все ДК в сети");fMessageOk = true;}
           }
         }else{
          if(++countError>=ret->surd.Count){
-          countOk = 0;
+          countOk = countError = 0;
           fMessageOk = false;
-          if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК в сети");fMessageErr = true;}
+          if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
           }
         }
-      step = NUL;
+      step = Null;
       return;
       }
-  case TWO:   // работает ВПУ надо отправить запрос
+  case Two:   // работает ВПУ надо отправить запрос
     clearAllStatusDk(); // нулим весь статус
     CollectCmdBroadCast(BuffCommand,SET_PHASE);
     udp_sendStrBroadcast(BuffCommand,IPPORT);
+    step = Three;
     return;
-  case THREE: // получили все ответы
-    if(getAllDk()){step = NUL;return;}
-    if(++count>=3){step = NUL;count=0;Event_Push_Str("Ошибки ответов ДК");return;}// надо записать в журнал событие!
-    step = TWO;
+  case Three: // получили все ответы
+    if(getAllDk()){step = Null;return;}
+    if(++count>=3){step = Null;count=0;Event_Push_Str("Ошибки ответов ДК");return;}// надо записать в журнал событие!
+    step = Two;
     return;
   default:
-    DK[0].StatusSurd.CountRequests = step = NUL;
+    DK[0].StatusSurd.CountRequests = step = Null;
     count=countError=countOk = 0;
     return;
   }
@@ -450,8 +456,12 @@ static void task_cmd_func(void* param)
         hw_watchdog_clear();
         // таймаут
         if(answer==TERR_TIMEOUT){
-          if(DK[0].tumbler!=TUMBLER) // нет режима программирования
+          if((!DK[CUR_DK].OSHARD)&&(!DK[CUR_DK].OSSOFT))// нет режима программирования
               PollingDkLine(retPrj);
+          // вернуть ip параметры
+          if(getFlagDefaultIP()){
+            saveDatePorojectIP(); // параметры из структуры сбросс
+            }
           }else{ // есть что то в буффере
           // есть ошибки
           if(answer != TERR_NO_ERR){
@@ -573,35 +583,51 @@ static BOOL ip_security_check(struct ip_addr* srv_addr)
     return g_security_ipaddr.addr == srv_addr->addr;
 }
 /*----------------------------------------------------------------------------*/
-//static void SurdStatus(void)
-//{
-//
-        //char buf[30];
-        /*
-        snprintf(buf, sizeof(buf),
-        "IP:%u.%u.%u.%u\n",
-        (unsigned)ip4_addr1(cmd_p->raddr),
-        (unsigned)ip4_addr2(cmd_p->raddr),
-        (unsigned)ip4_addr3(cmd_p->raddr),
-        (unsigned)ip4_addr4(cmd_p->raddr)
-        ); */
-        /*unsigned char ip1 = (unsigned)ip4_addr1(cmd_p->raddr);
-        unsigned char ip2 = (unsigned)ip4_addr2(cmd_p->raddr);
-        unsigned char ip3 = (unsigned)ip4_addr3(cmd_p->raddr);
-        unsigned char ip4 = (unsigned)ip4_addr4(cmd_p->raddr);
-        buf[0] = ip1;
-        buf[1] = ip2;
-        buf[2] = ip3;
-        buf[3] = ip4;
-        buf[4] = '\n';*/
+// функции для работы в группе
+/*----------------------------------------------------------------------------*/
+// проверить все ДК на связи.
+BOOL getAllDk(void)
+{
+const DWORD sattusDk = DK[CUR_DK].StatusSurd.StatusDK;
+const int maxDk = PROJ[CUR_DK].maxDK;
 
-        /*struct ip_addr  addr_remip;
-        IP4_ADDR(&addr_remip, 169, 254,16,255);
-        cmd_p->raddr = &addr_remip;
-        cmd_p->rport = 11990;
-        udp_sendstr(cmd_p,"STR1 new paskage");*/
-  //      char *buff = "STR1 new paskage";
-    //    udp_native_sendbuf(g_cmd_ch_pcb,buff,strlen(buff),IP_ADDR_BROADCAST,11990);
-        /*char *buff = "STR1 new paskage";
-        udp_cmd_sendbuf(buff,strlen(buff));*/
-//}
+for(int i=0;i<maxDk;i++)
+  {
+  if(PROJ[CUR_DK].surd.ID_DK_CUR==i)continue; // это наш id
+  if((sattusDk&(1<<i))==0)return false; // дк не ответил
+  }
+return true;
+}
+// установть новый статус ДК
+void setStatusDk(const BYTE nDk)
+{
+DK[CUR_DK].StatusSurd.StatusDK|=1<<nDk;
+}
+// сбрость статус ДК
+/*void clearStatusDk(const BYTE nDk)
+{
+DK[CUR_DK].StatusSurd.StatusDK&=~(1<<nDk);
+}*/
+// очистить весь статус
+void clearAllStatusDk(void)
+{
+DK[CUR_DK].StatusSurd.StatusDK=NULL;
+}
+// устанавливаем ответы DK
+BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp)
+{
+const TPROJECT *prj = retPointPROJECT();
+//сравним  IDP
+const long idp_calc = retCRC32();
+if(idp==idp_calc){// проект наш
+  //проверка пароля
+
+  if(pass==prj->surd.Pass){
+    if(id<prj->maxDK){
+      setStatusDk(id);//дк ответил
+      return true;
+      }
+    }
+  }
+return false;
+}

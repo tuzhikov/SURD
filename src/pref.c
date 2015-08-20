@@ -17,6 +17,7 @@
 
 static TN_MUTEX g_mutex;
 static long     g_pref_cache[PREF_L_CNT];
+static volatile BOOL fRestoreIP = false; // флаг, надо востановить данные IP предыдущие
 
 #if PREF_L_CNT * 4 > EEPROM_PREF_SIZE/2 // PREF_L_CNT * sizeof(long)
     #error Too many preferences data, see EEPROM_PREF_SIZE in memory/memory.h
@@ -51,13 +52,31 @@ lock();
       }
 unlock();
 }
-/* ------------------------установка ip по умолчанию -------------------------*/
+/* ------------------------установка ip по умолчанию  с сохранение -----------*/
 void pref_reset()
 {
   lock();
   pref_load_def();
   pref_save();
   unlock();
+}
+/* ------------------------установка ip по умолчанию  без сохранения ---------*/
+void pref_reset_default()
+{
+lock();
+pref_load_def();
+struct ip_addr ipaddr   = {pref_get_long(PREF_L_NET_IP)};
+struct ip_addr netmask  = {pref_get_long(PREF_L_NET_MSK)};
+struct ip_addr gw       = {pref_get_long(PREF_L_NET_GW)};
+setNetParamerts(&ipaddr,&netmask,&gw);
+unlock();
+}
+/*--------------установить новые IP адреса------------------------------------*/
+void setParametrIP(struct ip_addr* ipaddr, struct ip_addr* netmask, struct ip_addr* gw)
+{
+lock();
+setNetParamerts(ipaddr,netmask,gw);
+unlock();
 }
 /*--- запрос ip параметров----------------------------------------------------*/
 long pref_get_long(enum pref_l_idx idx)
@@ -146,13 +165,11 @@ static void pref_load_def()
     struct ip_addr addr;
 
     g_pref_cache[PREF_L_NET_MODE]           = NET_MODE_STATIC_IP; //NET_MODE_DHCP
-   //
    #ifdef DEBUG
     IP4_ADDR(&addr, 169, 254, 16, 1);
-   #else
+    #else
     IP4_ADDR(&addr, 169, 254, 16, 1);
    #endif
-   //
     g_pref_cache[PREF_L_NET_IP]             = addr.addr;
 
     IP4_ADDR(&addr, 255, 255, 255, 0);
@@ -166,16 +183,11 @@ static void pref_load_def()
     g_pref_cache[PREF_L_CMD_PORT]           = 11990;
 //    g_pref_cache[PREF_L_MAC_1]              = 0x001AB600;
 //    g_pref_cache[PREF_L_MAC_2]              = 0;
-
     g_pref_cache[PREF_L_PWM_RGY]             = 0x623212;
-
     g_pref_cache[PREF_DELAY_LIGHT_ON]        = 0;
     g_pref_cache[PREF_DELAY_LIGHT_OFF]       = 0;
-
     g_pref_cache[PREF_RF_ADDR_PULT_HI]        = 0x00000000;
     g_pref_cache[PREF_RF_ADDR_PULT_LO]        = 0x00000000;
-
-
 }
 /* LOCK-----------------------------------------------------------------------*/
 static void lock()
@@ -212,6 +224,23 @@ void pref_data_rd(unsigned short addr, unsigned char* dest, unsigned short len)
     memcpy(dest, ((unsigned char*)g_pref_cache)+addr, len);
     unlock();
 }
+/* флаг перекинуть адреса по умолчанию*/
+void setFlagDefaultIP(BOOL fl)
+{
+lock();
+fRestoreIP = fl;
+unlock();
+}
+BOOL getFlagDefaultIP(void)
+{
+bool temp = false;
+lock();
+temp = fRestoreIP;
+fRestoreIP = false;
+unlock();
+if(temp)return true;
+return false;
+}
 /* сохранить параметры ip из проекта------------------------------------------*/
 void saveDatePorojectIP(void)
 {
@@ -232,8 +261,10 @@ if(prj->surd.ID_DK_CUR < prj->maxDK){ //проверим
       }
     //проверка IP на равенство
     struct in_addr ipold = {pref_get_long(PREF_L_NET_IP)};
-    if(addr.addr!=ipold.s_addr)// сохранить если ip другой
+    if(addr.addr!=ipold.s_addr){// сохранить если ip другой
             pref_set_long(PREF_L_NET_IP,addr.addr);
+            tn_reset(); // сбросс CPU
+            }
     }
   //save mac addr
   unsigned hw[6];
@@ -251,13 +282,16 @@ if(prj->surd.ID_DK_CUR < prj->maxDK){ //проверим
        if((MAC1!=MAC1OLD)||(MAC2!=MAC2OLD)){
           pref_set_long(PREF_L_MAC_1,MAC1);
           pref_set_long(PREF_L_MAC_2,MAC2);
+          tn_reset(); // сбросс CPU
           }
        }
     }
   //save PORT
   if(prj->surd.PORT){
-    if(pref_get_long(PREF_L_CMD_PORT)!=prj->surd.PORT)
-           pref_set_long(PREF_L_CMD_PORT,prj->surd.PORT);
+    if(pref_get_long(PREF_L_CMD_PORT)!=prj->surd.PORT){
+          pref_set_long(PREF_L_CMD_PORT,prj->surd.PORT);
+          tn_reset(); // сбросс CPU
+          }
     }
   }
 }

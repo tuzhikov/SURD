@@ -50,6 +50,8 @@ static void iface_down(struct netif* iface);
 static void iface_ready_callback(struct netif* iface, BOOL ready);
 static void debug_print_iface_info(struct netif* iface);
 
+
+// satart ethernet
 void ethernet_init(enum net_mode mode, struct ip_addr* ipaddr, struct ip_addr* netmask, struct ip_addr* gw)
 {
     dbg_printf("Initializing Ethernet...");
@@ -114,7 +116,15 @@ err:
     dbg_trace();
     tn_halt();
 }
-
+/*----------------------------------------------------------------------------*/
+void setNetParamerts(struct ip_addr* ipaddr, struct ip_addr* netmask, struct ip_addr* gw)
+{
+TN_INTSAVE_DATA
+tn_disable_interrupt();
+netif_set_addr(&g_iface1,ipaddr,netmask,gw);
+tn_enable_interrupt();
+}
+/*----------------------------------------------------------------------------*/
 enum net_mode get_net_mode()
 {
     return g_net_mode;

@@ -10,6 +10,7 @@
 #include "../multicast/cmd_fn.h"
 #include "../memory/memory.h"
 #include "../pins.h"
+//#include "types_define.h"
 
 // состояния защелок портов
 BYTE     GREEN_PORT;
@@ -91,7 +92,7 @@ YEL_PORT = 0;
 // group = 0..<=MaxMULBlocks. 0 - не включать.
 // gr_col = 0..<MaxChannels, collor
 // stat - состояние вкл\выкл
-void Set_LED(int group, int gr_col, bool stat)
+void Set_LED(int group, int gr_col, BOOL stat)
 {
 if (group==0)return; // не задан канал
 //сохраняем для защелки
@@ -181,7 +182,7 @@ if((maskDir==MUL_YELLOW)&&
 if((maskDir==MUL_GREEN)&&
    ((curDir==GREEN)||(curDir==GREEN_YELLOW)))result=true;
 //отработали инверсию
-if(inv)result=~result;
+if(inv)result=!result;
 return result;
 }
 //
@@ -201,7 +202,7 @@ if((maskDir==MUL_GREEN)&&
    ((statDir==FOND)||(statDir==(TURN|FOND))||
     (statDir==(DIRECT|FOND))||(statDir==(TURN|DIRECT|FOND))))result=true;
 // инверсия
-if(inv)result=~result;
+if(inv)result=!result;
 return result;
 }
 // сравнить два значения по операции из массива-------------------------------//
@@ -326,14 +327,14 @@ switch(statUDZCG)
 //----------------------------------------------------------------------------//
 void Write_DX(BYTE dat)
 {
-    if (dat & (1<<0)) pin_on(OPIN_D0); else pin_off(OPIN_D0);
-    if (dat & (1<<1)) pin_on(OPIN_D1); else pin_off(OPIN_D1);
-    if (dat & (1<<2)) pin_on(OPIN_D2); else pin_off(OPIN_D2);
-    if (dat & (1<<3)) pin_on(OPIN_D3); else pin_off(OPIN_D3);
-    if (dat & (1<<4)) pin_on(OPIN_D4); else pin_off(OPIN_D4);
-    if (dat & (1<<5)) pin_on(OPIN_D5); else pin_off(OPIN_D5);
-    if (dat & (1<<6)) pin_on(OPIN_D6); else pin_off(OPIN_D6);
-    if (dat & (1<<7)) pin_on(OPIN_D7); else pin_off(OPIN_D7);
+if(dat & (1<<0))pin_on(OPIN_D0); else pin_off(OPIN_D0);
+if(dat & (1<<1))pin_on(OPIN_D1); else pin_off(OPIN_D1);
+if(dat & (1<<2))pin_on(OPIN_D2); else pin_off(OPIN_D2);
+if(dat & (1<<3))pin_on(OPIN_D3); else pin_off(OPIN_D3);
+if(dat & (1<<4))pin_on(OPIN_D4); else pin_off(OPIN_D4);
+if(dat & (1<<5))pin_on(OPIN_D5); else pin_off(OPIN_D5);
+if(dat & (1<<6))pin_on(OPIN_D6); else pin_off(OPIN_D6);
+if(dat & (1<<7))pin_on(OPIN_D7); else pin_off(OPIN_D7);
 }
 //----------------------------------------------------------------------------//
 // Пишем в регистры
@@ -396,7 +397,7 @@ for (int i_napr=0; i_napr<maxAllDir; i_napr++)
     setDirectUDZCG(i_napr,diR,fUdzOFF);
     }
   }// end for
-// Ждите ?
+// Ждите
 if (DK[CUR_DK].TVP.enabled)
   if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP))
           for (int tvp_i=0; tvp_i< MaxTVP; tvp_i++)

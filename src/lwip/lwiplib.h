@@ -34,6 +34,7 @@ BOOL arp_find_addr(struct ip_addr* ipaddr, struct eth_addr* hwaddr_out);
 
 BOOL hwaddr_load(struct eth_addr* hwaddr);
 BOOL hwaddr_save(struct eth_addr* hwaddr);
+void setNetParamerts(struct ip_addr* ipaddr, struct ip_addr* netmask, struct ip_addr* gw);
 
 // call from ethernet interrupt
 void lwip_eth_int_processing();

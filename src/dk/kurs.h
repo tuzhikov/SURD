@@ -21,7 +21,7 @@ extern     BYTE     RED_PORT_ERR;
 /*External functios*/
 /*----------------------------------------------------------------------------*/
 void  Update_STATES_KURS(const bool flash,const bool fUdzON);
-void  Set_LED(int group, int gr_col, bool stat);
+void  Set_LED(int group, int gr_col,BOOL stat);
 void  SET_OUTPUTS();
 void Clear_LED();
 void Prepare_KURS_Structures();

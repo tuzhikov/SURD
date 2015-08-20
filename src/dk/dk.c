@@ -46,7 +46,7 @@ void D_W(const char*s)
 }
 //------------------------------------------------------------------------------
 #ifndef KURS_DK
-// обновить
+// обновить OLD
 unsigned short Update_STATES_VO()
 {
         int i_napr;
@@ -731,20 +731,14 @@ static void MODEL(void)
 {
 // Общие состояния ДК
 switch(DK[CUR_DK].REQ.prior_req)
-        {
-           case ALARM: {GO_ALARM();   break;}
-           //
-           case TUMBLER: {GO_TUBMLER(); break;}
-           //
-           case SERVICE: {GO_SERVICE(); break;}
-           //
-           case VPU: {GO_VPU(); break;}
-           //
-           case TVP: {GO_TVP();break;}
-           //
-           case PLAN: {GO_PLAN(); break;}
-           //
-        }
+  {
+  case ALARM:   {GO_ALARM();  break;}
+  case TUMBLER: {GO_TUBMLER();break;}
+  case SERVICE: {GO_SERVICE();break;}
+  case VPU:     {GO_VPU();    break;}
+  case TVP:     {GO_TVP();    break;}
+  case PLAN:    {GO_PLAN();   break;}
+  }
 }
 //------------------------------------------------------------------------------
 //  обработка поступающих запросов
@@ -985,7 +979,7 @@ static int  Check_Synhro(bool noKK)
          }
          ////текущий момент попал в хвост КК
          if (tim<0){
-            tim = tim + DK[CUR_DK].control.Tproga; //????????
+            tim = tim + DK[CUR_DK].control.Tproga;
             }
          DK[CUR_DK].control.len = tim;
          DK[CUR_DK].CUR.spec_prog = SPEC_PROG_YF;
@@ -1004,31 +998,28 @@ static BOOL EQ_States(STATE *sta1, STATE *sta2)
 bool res=false;
 //
 if (sta1->work == sta2->work)
-        switch (sta1->work)
-        {
-           case SPEC_PROG:
-           {
-             if (sta1->spec_prog == sta2->spec_prog)
-              res=true;
-             break;
-           }
-           //
-           case SINGLE_FAZA:
-           {
-             if (sta1->faza == sta2->faza)
-              res=true;
-             break;
-           }
-           //
-           case PROG_FAZA:
-           {
-             if (sta1->prog == sta2->prog)
-             if (sta1->prog_faza == sta2->prog_faza)
-               res=true;
-             break;
-           }
-           ///// SINGLE_FAZA
-        }
+  switch (sta1->work)
+    {
+    case SPEC_PROG:
+      {
+      if (sta1->spec_prog == sta2->spec_prog)
+        res=true;
+       break;
+      }
+    case SINGLE_FAZA:
+      {
+      if (sta1->faza == sta2->faza)
+        res=true;
+      break;
+      }
+    case PROG_FAZA:
+      {
+      if (sta1->prog == sta2->prog)
+        if (sta1->prog_faza == sta2->prog_faza)
+          res=true;
+      break;
+      }
+    }
 return (res);
 }
 //------------------------------------------------------------------------------
@@ -1285,21 +1276,16 @@ static void Check_Low_Level_Spec_Prog(void)
 // переключатель состояний ДК. автомат переключения силовых выходов
 static bool CONTROL(void)
 {
-  static int ticSec = 0;
   int prom_indx;
-  //
-  //if(ticSec++>=60)
-    {
-    ticSec = 0;
-    // Тикаем считаем время тпро в минутах
-    if (DK[CUR_DK].control.len)
-          DK[CUR_DK].control.len--;
-    }
+
+  // Тикаем считаем время в сек.
+  if (DK[CUR_DK].control.len)
+      DK[CUR_DK].control.len--;
   // проверка неотложных запросов
   Check_Low_Level_Spec_Prog();
   //автомат перключения
-
-  switch (DK[CUR_DK].control.STA)
+  const BYTE statControl = DK[CUR_DK].control.STA;
+  switch (statControl)
         {
                 case STA_INIT:
                 {
@@ -1325,8 +1311,7 @@ static bool CONTROL(void)
                    {
                         SET_NEXT_STATE();
                    }
-                   //break;//??????
-                   return true;
+                   break;
                 }
                 // шаг основного такта
                 case STA_OSN_TAKT:
@@ -1396,7 +1381,8 @@ static bool CONTROL(void)
                      break;
                 }
         }
-return false;
+if((statControl==STA_PROM_TAKTS)||(statControl==STA_OSN_TAKT))return false; // УДЗСГ вкл.
+return true; // УДЗСГ выкл.
 }
 /*----------------------------------------------------------------------------*/
 /*
@@ -1444,15 +1430,19 @@ Clear_UDC_Arrays();
 return (fire_light);
 }
 /*----------------------------------------------------------------------------*/
-////////////////////////////////////////////////////////////////////////////////
-// Выделены функции
-////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************
+                          Выделены функции
+*******************************************************************************/
+/*----------------------------------------------------------------------------*/
 void DK_Service_OS(void)
 {
     DK[CUR_DK].REQ.req[SERVICE].spec_prog = SPEC_PROG_OC;
     DK[CUR_DK].REQ.req[SERVICE].work = SPEC_PROG;
     DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
     DK[CUR_DK].REQ.req[SERVICE].presence = true;
+    // установили флаги ДК ОС
+    for (int i_dk=0; i_dk<DK_N; i_dk++)
+           DK[i_dk].OSSOFT = true;
 }
 /*----------------------------------------------------------------------------*/
 void DK_Service_YF(void)
@@ -1466,6 +1456,9 @@ void DK_Service_YF(void)
 void DK_Service_undo(void)
 {
 Clear_STATE(&(DK[CUR_DK].REQ.req[SERVICE]));
+// установили флаги ДК ОС
+for (int i_dk=0; i_dk<DK_N; i_dk++)
+           DK[i_dk].OSSOFT = false;
 }
 /*----------------------------------------------------------------------------*/
 void DK_Service_KK(void)
@@ -1476,7 +1469,7 @@ void DK_Service_KK(void)
     DK[CUR_DK].REQ.req[SERVICE].presence = true;
 }
 /*----------------------------------------------------------------------------*/
-void DK_Service_faza(unsigned long faz_i)
+void DK_Service_faza(const unsigned long faz_i)
 {
      DK[CUR_DK].REQ.req[SERVICE].work = SINGLE_FAZA;
      DK[CUR_DK].REQ.req[SERVICE].faza = faz_i;
@@ -1495,53 +1488,4 @@ return &PROJ[CUR_DK].ExpUDZ;
 const TPROJECT *retPointPROJECT(void)
 {
 return &PROJ[CUR_DK];
-}
-/*----------------------------------------------------------------------------*/
-// функции для работы в группе
-/*----------------------------------------------------------------------------*/
-// проверить все ДК на связи.
-bool getAllDk(void)
-{
-const DWORD sattusDk = DK[CUR_DK].StatusSurd.StatusDK;
-const int maxDk = PROJ[CUR_DK].maxDK;
-
-for(int i=0;i<maxDk;i++)
-  {
-  if(PROJ[CUR_DK].surd.ID_DK_CUR==i)continue; // это наш id
-  if((sattusDk&(1<<i))==0)return false; // дк не ответил
-  }
-return true;
-}
-// установть новый статус ДК
-void setStatusDk(const BYTE nDk)
-{
-DK[CUR_DK].StatusSurd.StatusDK|=1<<nDk;
-}
-// сбрость статус ДК
-void clearStatusDk(const BYTE nDk)
-{
-DK[CUR_DK].StatusSurd.StatusDK&=~(1<<nDk);
-}
-// очистить весь статус
-void clearAllStatusDk(void)
-{
-DK[CUR_DK].StatusSurd.StatusDK=NULL;
-}
-// устанавливаем ответы DK
-bool checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp)
-{
-const TPROJECT *prj = retPointPROJECT();
-//сравним  IDP
-const long idp_calc = retCRC32();
-if(idp==idp_calc){// проект наш
-  //проверка пароля
-
-  if(pass==prj->surd.Pass){
-    if(id<prj->maxDK){
-      setStatusDk(id);//дк ответил
-      return true;
-      }
-    }
-  }
-return false;
 }

@@ -8,14 +8,7 @@
 #include "../light/light.h"
 #include "../utime.h"
 
-//#ifndef  __cplusplus
-#define bool  unsigned char
-#define true  1
-#define false 0
-#define BOOL int
-//#endif
-
- typedef struct tm SYSTEMTIME;
+typedef struct tm SYSTEMTIME;
 
 //#define SYSTEMTIME      (struct tm)
 // коды ошибок
@@ -157,8 +150,10 @@ typedef struct
        BYTE             work;    //ДК работает
        TPROJECT         *PROJ;   //проект
        BYTE             tumbler; // флаг нажатого тумблера
-       BYTE             OS; // нажат ОС
+       BYTE             OSHARD;  // нажат ОС
+       BYTE             OSSOFT;  // OS soft
        BYTE             YF; // нажат YF
+       BYTE             IP_RESET; // сбросс IP по умолчанию
        BYTE             test;         //тест-режим
        BYTE             test_init;    // флаг для очистки выводов
        BYTE             flash;     //начато обновление проекта-программа
@@ -216,17 +211,12 @@ void TIME_PLUS(SYSTEMTIME *tt, SYSTEMTIME *tplus, int sec_plus);
 ////////////////////////////////////////////////////////////////////////////////////
 void DK_Service_OS(void);
 void DK_Service_YF(void);
+void DK_Service_KK(void);
 void DK_Service_undo(void);
 void DK_Service_faza(unsigned long faz_i);
 // указатели на данные текущего ДК
 const TEXPRESSIONS *retPointExpUDZ(void);
 // указатели на данные текущего ДК
 const TPROJECT *retPointPROJECT(void);
-//функции для работы в SURD
-void setStatusDk(const BYTE nDk);
-void clearStatusDk(const BYTE nDk);
-bool getAllDk(void);
-void clearAllStatusDk(void);
-bool checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp);
 
 #endif

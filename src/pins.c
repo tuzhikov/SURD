@@ -13,13 +13,15 @@
 #include "dk/dk.h"
 #include "event/evt_fifo.h"
 #include "dk/kurs.h"
-
+#include "lwip/lwiplib.h"
+#include "pref.h"
 #define TVP_LEVEL       3
+#define MAX_COUNT       3
 
 static TN_TCB task_PINS_tcb;
 #define PINS_REFRESH_INTERVAL        80
 
-static unsigned int task_PINS_stk[TASK_PINS_STK_SZ];
+static unsigned int task_PINS_stk[TASK_PINS_STK_SZ]={0xFF};
 struct o_pin_nfo
 {
     enum o_pin      pin_id;
@@ -126,7 +128,7 @@ static struct i_pin_nfo const g_ipins[IPIN_CNT] =
 };
 //----------------------------------------------------------------------------//
 // local value
-static unsigned char tvp_count[MaxTVP];
+unsigned char tvp_count[MaxTVP] = {0};
 // local functions
 static void pins_pre_configure();
 static void pins_post_configure();
@@ -176,118 +178,99 @@ static void  TVP_IN(BOOL pin_sta, int tvp_num)
                  {
                    if (DK[i_dk].tvps[tvp_num].pres==0)
                        DK[i_dk].tvps[tvp_num].pres=1;
-
                  }
-                 ////////////
                }
            }
-
         }
 }
-//-----------------------------------------------------------------------------
+//----------------------------------------------------------------------------//
 static void task_PINS_func(void* param)
 {
-static unsigned char yf_count=0;
-static unsigned char oc_count=0;
-
-for (int i=0;i<MaxTVP; i++) tvp_count[i]=0;
+enum {IP_COUNT,OS_COUNT,END_COUNT};
+static BYTE count[END_COUNT]={0};
+static Type_Step_Machine statTumbler=One;
 //
-for (;;)
+for(;;)
     {
     tn_task_sleep(PINS_REFRESH_INTERVAL);// вход каждые 80ms.
-
-    if (!pin_rd(IPIN_Y_BLINK)) // вместо тумблеро ЖМ, установка IP адреса по умолчанию
-        {
-           if (yf_count)
-             yf_count--;
-        }
-        else
-        {
-           if (yf_count<TVP_LEVEL)
-           {
-               yf_count++;
-           }
-        }
-        //
-    if (yf_count>=TVP_LEVEL)
-        {
-          /*for (int i_dk=0; i_dk<DK_N; i_dk++)
-            DK[i_dk].YF = true;*/
-        }
-        else
-        {
-          /*for (int i_dk=0; i_dk<DK_N; i_dk++)
-            DK[i_dk].YF = false;*/
-        }
-    //тумблер ОС
-    if (!pin_rd(IPIN_OFF))
-        {
-           if (oc_count)
-             oc_count--;
-        }
-        else
-        {
-           if (oc_count<TVP_LEVEL)
-           {
-               oc_count++;
-           }
-        }
-    //
-    if (oc_count==TVP_LEVEL)
-        {
+    //  установка IP адреса по умолчанию тумблер ОК------------------//
+    if (!pin_rd(IPIN_Y_BLINK)){
+        if(count[IP_COUNT])count[IP_COUNT]--;
+          else{
           for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].OS = true;
-        }
-        else
-        {
+            DK[i_dk].IP_RESET = false;
+          }
+        }else{
+        if(count[IP_COUNT]<MAX_COUNT){count[IP_COUNT]++;}
+          else{
           for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].OS = false;
+            DK[i_dk].IP_RESET = true;
+          }
+        }
+    // отработать тумблер IP default
+    switch(statTumbler)
+      {
+      case Null: // Если тумблер IP не включен, вернуть IP параметры
+        setFlagDefaultIP(true);
+        statTumbler = One;
+      case One: // проверяем включение тумблера
+        if(DK[CUR_DK].IP_RESET)statTumbler = Two;
+                          else statTumbler = Null;
+        break;
+      case Two: // устанвка параметров по умолчанию
+        setFlagDefaultIP(false);// не проверять адресс IP
+        pref_reset_default();   // call pref.h
+        statTumbler = Three;
+      case Three:
+        if(!DK[CUR_DK].IP_RESET)statTumbler = Null;
+        break;
+      default:
+        statTumbler = Null;
+        break;
+      }
+    //тумблер ОС-------------------------//
+    if(!pin_rd(IPIN_OFF)){
+        if(count[OS_COUNT])count[OS_COUNT]--;
+          else{
+          for (int i_dk=0; i_dk<DK_N; i_dk++)
+            DK[i_dk].OSHARD = false;
+          }
+        }else{
+        if(count[OS_COUNT]<MAX_COUNT){count[OS_COUNT]++;}
+          else{
+          for (int i_dk=0; i_dk<DK_N; i_dk++)
+           DK[i_dk].OSHARD = true;
+          }
         }
     //
     for (int i_dk=0; i_dk<DK_N; i_dk++)
       {
-      if (DK[i_dk].YF || DK[i_dk].OS)
-            DK[i_dk].tumbler=true;
-          else
-            DK[i_dk].tumbler = false;
-          ////////////////////
+      if(DK[i_dk].OSHARD)DK[i_dk].tumbler = true;
+                    else DK[i_dk].tumbler = false;
+      //
       if (DK[i_dk].tumbler)
           {
             // чистим запросы
             DK[i_dk].tvps[0].pres = false;
             DK[i_dk].tvps[1].pres = false;
             DK[i_dk].REQ.req[TVP].presence =false;
-            //////
-            if (DK[i_dk].OS)
+            //
+            if (DK[i_dk].OSHARD)
             {
               DK[i_dk].REQ.req[TUMBLER].spec_prog = SPEC_PROG_OC;
               DK[i_dk].REQ.req[TUMBLER].work = SPEC_PROG;
               DK[i_dk].REQ.req[TUMBLER].source = TUMBLER;
               DK[i_dk].REQ.req[TUMBLER].presence = true;
-              //pin_off(OPIN_POWER);
-              //DK_Service_OS();
             }
-            else
-              if (DK[i_dk].YF)
-              {
-                DK[i_dk].REQ.req[TUMBLER].spec_prog = SPEC_PROG_YF;
-                DK[i_dk].REQ.req[TUMBLER].work = SPEC_PROG;
-                DK[i_dk].REQ.req[TUMBLER].source = TUMBLER;
-                DK[i_dk].REQ.req[TUMBLER].presence = true;
-                //DK_Service_YF();
-              }
           }
-          else
-          {
-             DK[i_dk].REQ.req[TUMBLER].presence = false;
-             //
-            //DK_Service_undo();
+          else{
+          DK[i_dk].REQ.req[TUMBLER].presence = false;
           }
         }
-        //IPIN_OFF
-        TVP_IN(pin_rd(IPIN_TVP0),0);
-        TVP_IN(pin_rd(IPIN_TVP1),1);
-        //
+   //IPIN_OFF
+   TVP_IN(pin_rd(IPIN_TVP0),0);
+   TVP_IN(pin_rd(IPIN_TVP1),1);
+   //
     for (int i_dk=0; i_dk<DK_N; i_dk++)
         {
         if (DK[i_dk].CUR.source==PLAN)

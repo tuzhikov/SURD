@@ -7,13 +7,26 @@
 #ifndef __TYPES_DEFINE_H__
 #define __TYPES_DEFINE_H__
 
+#ifndef bool
+#define bool  unsigned char
+#endif
+#ifndef true
+#define true  1
+#endif
+#ifndef false
+#define false 0
+#endif
+#ifndef BOOL
+#define BOOL int
+#endif
+
 typedef unsigned char  U08;
 typedef unsigned char  U8;
 typedef unsigned char  BYTE;
 typedef unsigned short WORD;
 typedef unsigned short U16;
 typedef signed short   S16;
-typedef unsigned long DWORD;
+typedef unsigned long  DWORD;
 typedef unsigned long  U32;
 
 
