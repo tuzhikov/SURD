@@ -77,7 +77,20 @@ typedef struct _VPU_COMMAND_{
   U8 (*setFunc)(void *p,U8 len);  // A pointer to the handling function
   U8 FlagEnd;
 }VPU_COMMAND;
-
+//////////
+// data exchange beetween master and slave
+typedef struct{
+  BYTE                  statusNEt; //  0- OFF, 1- OK
+  BYTE                  idDk;     //     
+  BYTE                  vpuOn;  // 0- OFF, 1 - ON
+  Type_STATUS_VPU       vpu; 
+} MASTER_SLAVE_VPU;
+typedef struct{
+  MASTER_SLAVE_VPU   m_to_s; //master to slave status
+  MASTER_SLAVE_VPU   s_to_m; //slave to master VPU status
+} VPU_EXCHANGE;
+//////////////
+extern VPU_EXCHANGE  vpu_exch;
 
 /*external functions*/
 void vpu_init();   //эта функция вызываеться из модуля main.c в функции static void startup() TN_kernel

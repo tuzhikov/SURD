@@ -45,6 +45,10 @@ static Type_ANS parserData(U8* data, U8 size);
 static Type_ANS StrGetVPU(UART_SBUF * buf,U08* str, U16 size);
 //static void YELDk(const char Enabled);
 //static void OSDk(const BOOL Enabled);
+////////////////////////////////////////////////
+// Structure for exchange between master and slave
+VPU_EXCHANGE  vpu_exch;  
+//
 /*---------- Functions----------------------------------------------------*/
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
 {
@@ -119,7 +123,7 @@ while(MAP_UARTCharsAvail(UART_BASE)) // Do byte FIFO
   recByte = MAP_UARTCharGetNonBlocking(UART_BASE);
   }//while end
 }*/
-
+//------------------------------------------------------------------------------
 /*Interrupt UART 1*/ // здесь все что приходит и отправляеться с UART
 void uart1_int_handler()
 {
@@ -150,6 +154,7 @@ if (ist & UART_INT_TX){
     }
   }
 }
+//------------------------------------------------------------------------------
 /*  flush Buffers VPU*/
 void bsp_vpu_buff_flush (UART_SBUF *buf)
 {
@@ -180,6 +185,7 @@ dataVpu.satus = tlNo;
 PWR485_ON();  // enabled power RS485
 return TRUE;
 }
+//------------------------------------------------------------------------------
 /*Set LED protocol*/
 static U8 setLedSetup(void *p,U8 len)
 {
@@ -204,6 +210,7 @@ st[3] = dataVpu.led[10].On<<4|dataVpu.led[9].On<<2|
 lenght++;
 return lenght;
 }
+//------------------------------------------------------------------------------
 /*Set status Button test function*/
 static void SetStatusButton(void)
 {
@@ -229,6 +236,7 @@ for(int i=0;i<MAX_BUTTON;i++)
   dataVpu.led[i].On = ledOff;
   }
 }
+//------------------------------------------------------------------------------
 /*update the structure TVPU */
 static void UpdateSatus(void)
 {
@@ -263,6 +271,7 @@ if((dataVpu.rButton[ButManual].On==bUp)||
         }
    }
 }
+//------------------------------------------------------------------------------
 /*Command VPU*/
 const VPU_COMMAND vpuCmd[] =
 {
@@ -298,34 +307,37 @@ length = sizeof(TMOBUS_REQUEST)+length_add+sizeof(U16);
 return length;
 }
 
+//------------------------------------------------------------------------------
 /*send message and get answer*/
-static Type_STATUS_VPU DataExchange(void)
+Type_STATUS_VPU DataExchange(void)
 {
-static Type_Step_Machine step = Null;
-static U8 number = NULL,countError = NULL,TimeTest = NULL;
-U8 Buff[20],length;
-Type_ANS answer;
-////////////////
-if(++TimeTest>20){
+  static int step=Null;
+  static U8 number = NULL,countError = NULL,TimeTest = NULL;
+  U8 Buff[20],length;
+  Type_ANS answer;
+  ////////////////
+  if(++TimeTest>20){
           TimeTest = NULL;
           SetStatusButton();
           }
-///////////////
-switch(step)
+  ///////////////
+  switch(step)
       {
       case Null:
         length = MessageCollect(Buff,sizeof(Buff),vpuCmd[number]);
         if(StrPutVPU(&TX1buff,Buff,length)!=0){
           memset(Buff,0,sizeof(Buff));
-          step = One;
+          step = 1;
+          //step2 = 1;
           }
         return tlNo;
-      case One:
+      case 1:
         answer = StrGetVPU(&RX1buff,Buff,sizeof(Buff));
         if(answer&ansOk|ansErr){
           if(vpuCmd[number].FlagEnd){
             number = NULL;
-            step = Null;
+            step = 0;
+            //step2 = 0;
             return tlEnd;
             }
           dataVpu.satus = tlManual;
@@ -339,8 +351,16 @@ switch(step)
         step = Null;
         countError = NULL;
         return tlNo;
-      }
+     }
 }
+//------------------------------------------------------------------------------
+void VPU_LOGIC()
+{
+  
+  
+
+}
+//------------------------------------------------------------------------------
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
@@ -352,7 +372,13 @@ static void task_VPU_func(void* param)
       UpdateSatus();
       }
     }
+    /////////////
+    // See NET status, drive DK.
+    VPU_LOGIC();
+    /////////////
+  
 }
+//------------------------------------------------------------------------------
 /*
 The function puts a string to UART transmit buffer.
 In case of failure it returns zero.
@@ -387,6 +413,7 @@ if (buf->stat.EMPTY == TRUE){
 MAP_UARTIntEnable(UART_BASE, UART_INT_TX);
 return i;
 }
+//------------------------------------------------------------------------------
 /*
 *The function returns a string in the buffer read from the UART
 *If the buffer is nothing - it returns -1
@@ -428,6 +455,7 @@ if(!CRC16(pBegin,lenght)){
   }
 return ansNoAnsw;
 }
+//------------------------------------------------------------------------------
 /* Parser Data */
 static Type_ANS parserData(U8* data, U8 size)
 {
@@ -469,12 +497,13 @@ if(*(data)==cmdLedSetup){ // command answer 01| 0f 00 00 00 16 d4 05
   }
 return ansErr;
 }
+//------------------------------------------------------------------------------
 /*return date VPU*/
 const TVPU *retDateVPU(void){return &dataVpu;}
 /*запросы по ВПУ отправляем true если все ДК в системе*/
 BYTE retRequestsVPU(void)
 {
-return false;
+  return false;
 }
 /*--------------------- return text status ----------------------------*/
 void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status)
