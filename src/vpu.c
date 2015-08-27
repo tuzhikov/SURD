@@ -301,7 +301,7 @@ return length;
 /*send message and get answer*/
 static Type_STATUS_VPU DataExchange(void)
 {
-static Type_Step_Machine step = Null;
+static int step = Null;
 static U8 number = NULL,countError = NULL,TimeTest = NULL;
 U8 Buff[20],length;
 Type_ANS answer;

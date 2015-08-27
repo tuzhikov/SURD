@@ -15,6 +15,7 @@ void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv);
 void cmd_polling_func(struct cmd_raw* cmd_p, int argc, char** argv);
 void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv);
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv);
+void cmd_getsatus_func(struct cmd_raw* cmd_p, int argc, char** argv);
 
 void cmd_ifconfig_func(struct cmd_raw* cmd_p, int argc, char** argv);
 void cmd_config_func(struct cmd_raw* cmd_p, int argc, char** argv);

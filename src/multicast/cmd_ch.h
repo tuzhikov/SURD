@@ -14,11 +14,12 @@
 #define CMD_NFO_SZ      32  // max cmd's count
 #define MAX_ARGV_SZ     8   // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
+#define MAX_QURY_SURD   3
 
 //step automate
 //typedef enum {NUL,ONE,TWO,THREE,FOR,FIVE,END}STEP_NET;
 //type command
-typedef enum {ALL_DK,SET_PHASE,END_CMD}TYPE_CMD_BROADCAST;
+typedef enum {ONE_DK,SET_PHASE,GET_STATUS,END_CMD}TYPE_CMD;
 //
 struct  cmd_raw
 {
@@ -46,6 +47,7 @@ err_t       udp_sendbuf(struct cmd_raw* cmd_p, char const* buf, int len);
 void        get_cmd_ch_ip(struct ip_addr* ipaddr);
 /*----------------------------------------------------------------------------*/
 void setStatusDk(const BYTE nDk);
+BOOL getStatusDk(const BYTE nDk);
 void clearStatusDk(const BYTE nDk);
 BOOL getAllDk(void);
 void clearAllStatusDk(void);

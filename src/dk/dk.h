@@ -149,11 +149,12 @@ typedef struct
 {
        BYTE             work;    //ДК работает
        TPROJECT         *PROJ;   //проект
-       BYTE             tumbler; // флаг нажатого тумблера
-       BYTE             OSHARD;  // нажат ОС
-       BYTE             OSSOFT;  // OS soft
+       BYTE             tumblerOS;   // флаг нажатого тумблера OS
+       BYTE             tumblerAUTO; // флаг нажатого тумблера AUTO
+       BYTE             OSHARD;  // установлен тумблер ОС
+       BYTE             OSSOFT;  // установлен программно ОС
        BYTE             YF; // нажат YF
-       BYTE             IP_RESET; // сбросс IP по умолчанию
+       BYTE             AUTO; // сбросс IP по умолчанию
        BYTE             test;         //тест-режим
        BYTE             test_init;    // флаг для очистки выводов
        BYTE             flash;     //начато обновление проекта-программа

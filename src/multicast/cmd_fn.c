@@ -70,6 +70,7 @@ static void udp_send_sensors(struct cmd_raw* cmd_p);
 
 static err_t udp_send_config(struct cmd_raw* cmd_p);
 static err_t udp_send_surd(struct cmd_raw* cmd_p);
+static err_t udp_getsatus_surd(struct cmd_raw* cmd_p);
 
 static struct cmd_raw debug_cmd_p;
 
@@ -106,6 +107,17 @@ if (argc != 0) // пришло не то
     }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
+}
+// команда запроса статуса СУРД slave
+void cmd_getsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
+{
+if (argc != 0) // пришло не то
+    {
+    udp_send_wrong_par(cmd_p);
+    return;
+    }
+//собираем команду для отправки
+udp_getsatus_surd(cmd_p);
 }
 // пришел ответ по СУРД, только запись отправки нет
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
@@ -1562,6 +1574,19 @@ for(int i=0;i<MAX_BUTTON;i++)
   }
 strcat(BuffTemp,"\r\n");
 strcat(buf,BuffTemp);
+return udp_sendstr(cmd_p, buf); // отправка буффера
+}
+/*----------------------------------------------------------------------------*/
+// ответ на get status
+static err_t udp_getsatus_surd(struct cmd_raw* cmd_p)
+{
+char buf[200];
+const bool StatusDK = getAllDk();
+
+snprintf(buf, sizeof(buf),
+        "SUCCESS: "
+        "SURD:  %s\r\n",
+        StatusDK?"ОК":"NO");
 return udp_sendstr(cmd_p, buf); // отправка буффера
 }
 /*----------------------------------------------------------------------------*/

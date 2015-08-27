@@ -195,7 +195,7 @@ typedef struct _TDIRECTS{
 #define MAX_OPERAND   3
 #define MAX_UDZCG     64
 typedef enum{
-        AND,OR,OR_NO,AND_NO,LONE,LNULL,END_LOGIC_OP
+        AND,OR,AND_NO,OR_NO,LONE,LNULL,END_LOGIC_OP
 }LOGIC_OP;
 
 typedef struct _TOperand_ {

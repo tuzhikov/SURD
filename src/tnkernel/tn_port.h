@@ -37,7 +37,7 @@
 
 #ifdef  TNKERNEL_PORT_MSP430X
 
-#include  <msp430f6638.h>  //-- MSP430X
+//#include  <msp430f6638.h>  //-- MSP430X
 #include  <intrinsics.h>
 
 #define align_attr_start
