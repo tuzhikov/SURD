@@ -5,6 +5,7 @@
 *****************************************************************************/
 
 #include <string.h> // memset(), memcpy()
+#include <stdio.h>
 #include "../tnkernel/tn.h"
 #include "../pref.h"
 #include "cmd_fn.h"
@@ -79,6 +80,7 @@ static void create_cmd_nfo_list()
     //commands net udp
     CMD_NFO_PUSH_BACK("allpollingdk",&cmd_polling_func,"");
     CMD_NFO_PUSH_BACK("setphaseudp",&cmd_setphase_func,"");
+    CMD_NFO_PUSH_BACK("getstatussurd",&cmd_getsatus_func,"");
     CMD_NFO_PUSH_BACK("SUCCESS:",&cmd_answer_surd_func,""); // проверяем ответы
     //commands configurator
     CMD_NFO_PUSH_BACK("ifconfig", &cmd_ifconfig_func,"");
@@ -191,6 +193,7 @@ err:
     dbg_trace();
     tn_halt();
 }
+/*----------------------------------------------------------------------------*/
 // отправка строки широковещательно
 err_t udp_sendStrBroadcast(char const* str,u16_t rport)
 {
@@ -365,103 +368,165 @@ static void task_cmd_LED_func(void* param)
 /*----------------------------------------------------------------------------*/
 //
 /*----------------------------------------------------------------------------*/
-/*собрать широковещательный запрос*/
-static bool CollectCmdBroadCast(char *pStr,const BYTE typeCmd)
+/*собрать запрос*/
+static bool CollectCmd(char *pStr,const BYTE typeCmd)
 {
-if(typeCmd==ALL_DK){
+if(typeCmd==ONE_DK){
   strcpy(pStr,"allpollingdk\r");
   return true;
   }
+if(typeCmd==GET_STATUS){
+  strcpy(pStr,"getstatussurd\r");
+  return true;
+  }
 if(typeCmd==SET_PHASE){
-  strcpy(pStr,"setPhaseUDP");
+  strcpy(pStr,"setphaseudp");
 
   strcat(pStr,"\r");
   return true;
   }
 return false;
 }
-//------------------------------------------------------------------------------
-/*отправка широковещательных пакетов*/
-/*запускаем машину на опрос*/
-static void PollingDkLine(const TPROJECT *ret)
+/*ret IP addres---------------------------------------------------------------*/
+Type_Return retSurdIP(const BYTE nDk,struct ip_addr *addr)
 {
-char BuffCommand[30];
-const WORD IPPORT = ret->surd.PORT;
-static Type_Step_Machine step = Null;
-static BYTE count = 0,countError = 0,countOk = 0,countClear = 0;
-static bool fMessageErr = false,fMessageOk = false;
+struct ip_addr ipaddr;
+const TPROJECT *prj = retPointPROJECT();
 
-switch(step)
+if(nDk>prj->maxDK)return retNull;
+const char *pStrIP = (char*)prj->surd.ip[nDk];
+unsigned ip[4];
+if(sscanf(pStrIP,"%u.%u.%u.%u",&ip[0],&ip[1],&ip[2],&ip[3])==4){
+  IP4_ADDR(&ipaddr,ip[0],ip[1],ip[2],ip[3]);
+  memcpy(addr,&ipaddr,sizeof(addr));
+  return retOk;
+  }
+return retNull;
+}
+/* master DK------------------------------------------------------------------*/
+Type_Return masterDk(const TPROJECT *ret)
+{
+const WORD IPPORT = ret->surd.PORT;
+char BuffCommand[30];
+static int stepMaster = Null;
+static BYTE indeDk = 1,countsend; // счет со второго ДК
+struct ip_addr ipaddr;
+
+switch(stepMaster)
   {
-  case Null: // отправляем
-    if(!countClear){// нулим весь статус
-        countClear=ret->surd.Count;
-        clearAllStatusDk();
-        }else
-        countClear--;
-    CollectCmdBroadCast(BuffCommand,ALL_DK); //
-    DK[0].StatusSurd.CountRequests++; // считаем количество запросов
-    udp_sendStrBroadcast(BuffCommand,IPPORT);
-    step = One;
-    return;
+  case Null: //сбросс
+    clearStatusDk(indeDk);// нулим
+    setStatusDk(0); // status master
+    countsend =0;
   case One:
-    count = 0;
-    if(retRequestsVPU()==0){ // поверяем запросы по ВПУ
-      // запросов по ВПУ нет,
-      if(getAllDk()){
-        if(++countOk>=ret->surd.Count){
-          countOk = countError = 0;
+    CollectCmd(BuffCommand,ONE_DK);
+    if(retSurdIP(indeDk,&ipaddr)==retOk){
+      udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
+      stepMaster=Two;
+      }else stepMaster=Null;
+    return retNull;
+  case Two: // answer
+    stepMaster=One;
+    if(getStatusDk(indeDk)){//ответ получен
+      if(indeDk<ret->maxDK)indeDk++;
+                  else {indeDk = 1;stepMaster = Three;}
+      }
+    if(++countsend>3){ // сбросс всего
+      stepMaster = Null;return retError;}
+    return retNull;
+  case Three: // сообщения
+
+    return retNull;
+  default:
+    stepMaster = Null;return retError;
+  }
+}
+/*slave DK -------------------------------------------------------------------*/
+Type_Return slaveDk(const TPROJECT *ret)
+{
+const WORD IPPORT = ret->surd.PORT;
+char BuffCommand[30];
+static BYTE contQuery=0,stepSlave = Null;
+static BOOL fMessageErr = false,fMessageOk = false;
+struct ip_addr ipaddr;
+
+switch(stepSlave)
+  {
+  case Null:
+      if(retRequestsVPU())stepSlave = One;
+                     else stepSlave = Three;
+      contQuery=0;
+      return retOk;
+  // есть событие по VPU отправка UDP
+  case One:
+      CollectCmd(BuffCommand,SET_PHASE);
+      retSurdIP(0,&ipaddr);
+      udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
+      contQuery++;
+      stepSlave = Two;
+  case Two:
+      if(contQuery>=MAX_QURY_SURD)stepSlave = Null;
+                             else stepSlave = One;
+      return retOk;
+  //запрос статуса СУРД
+  case Three:
+      CollectCmd(BuffCommand,GET_STATUS);
+      retSurdIP(0,&ipaddr);
+      udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
+      contQuery++;
+      stepSlave = For;
+      return retOk;
+  case For:
+      stepSlave = Three;
+      if((getAllDk())&&(contQuery>MAX_QURY_SURD)){ // all OK
+          stepSlave = Null;
           fMessageErr = false;
-          if(!fMessageOk){Event_Push_Str("Все ДК в сети");fMessageOk = true;}
+          if(!fMessageOk){Event_Push_Str("ERROR: Все ДК в сети");fMessageOk = true;}
           }
-        }else{
-         if(++countError>=ret->surd.Count){
-          countOk = countError = 0;
+      if((!getAllDk())&&(contQuery>MAX_QURY_SURD)){ // error
+          stepSlave = Null;
           fMessageOk = false;
           if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
           }
-        }
-      step = Null;
-      return;
-      }
-  case Two:   // работает ВПУ надо отправить запрос
-    clearAllStatusDk(); // нулим весь статус
-    CollectCmdBroadCast(BuffCommand,SET_PHASE);
-    udp_sendStrBroadcast(BuffCommand,IPPORT);
-    step = Three;
-    return;
-  case Three: // получили все ответы
-    if(getAllDk()){step = Null;return;}
-    if(++count>=3){step = Null;count=0;Event_Push_Str("Ошибки ответов ДК");return;}// надо записать в журнал событие!
-    step = Two;
-    return;
-  default:
-    DK[0].StatusSurd.CountRequests = step = Null;
-    count=countError=countOk = 0;
-    return;
+      return retOk;
+  default:stepSlave = Null;
+      return retError;
   }
 }
-//------------------------------------------------------------------------------
-/*основная функция потока CMD*/
+/*запускаем машину на опрос---------------------------------------------------*/
+static void PollingDkLine(const TPROJECT *ret)
+{
+if(ret->maxDK>1){ // в проекте больше одного ДК
+   if(ret->surd.ID_DK_CUR==0){
+      masterDk(ret);// мастер
+      }else{
+      slaveDk(ret); // slave
+      }
+  }
+}
+/*основная функция потока CMD ------------------------------------------------*/
 static void task_cmd_func(void* param)
 {
+  const int TimeDelay = 100; // 100 ms
   for (;;)
     {
         struct cmd_raw* cmd_p;
-        const TPROJECT *retPrj = retPointPROJECT();   // получить данные
-        const int TimeDelay = 1000;//retPrj->surd.TimeDelay; // время задержки
         // проверка очереди выход по времени
         const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,TimeDelay);//TN_WAIT_INFINITE
         // clear WD
         hw_watchdog_clear();
         // таймаут
         if(answer==TERR_TIMEOUT){
-          if((!DK[CUR_DK].OSHARD)&&(!DK[CUR_DK].OSSOFT))// нет режима программирования
-              PollingDkLine(retPrj);
+          if((!DK[CUR_DK].OSHARD)&&
+             (!DK[CUR_DK].OSSOFT)&&
+             (!DK[CUR_DK].AUTO)){// нет режима программирования и не включен режим авто
+               const TPROJECT *pPr = retPointPROJECT();   // получить данные
+               PollingDkLine(pPr);
+              }else{clearAllStatusDk();}
           // вернуть ip параметры
-          if(getFlagDefaultIP()){
+          /*if(getFlagDefaultIP()){
             saveDatePorojectIP(); // параметры из структуры сбросс
-            }
+            } */
           }else{ // есть что то в буффере
           // есть ошибки
           if(answer != TERR_NO_ERR){
@@ -603,11 +668,16 @@ void setStatusDk(const BYTE nDk)
 {
 DK[CUR_DK].StatusSurd.StatusDK|=1<<nDk;
 }
+// запросить статус
+BOOL getStatusDk(const BYTE nDk)
+{
+return (BOOL)(DK[CUR_DK].StatusSurd.StatusDK)&(1<<nDk);
+}
 // сбрость статус ДК
-/*void clearStatusDk(const BYTE nDk)
+void clearStatusDk(const BYTE nDk)
 {
 DK[CUR_DK].StatusSurd.StatusDK&=~(1<<nDk);
-}*/
+}
 // очистить весь статус
 void clearAllStatusDk(void)
 {
@@ -631,3 +701,64 @@ if(idp==idp_calc){// проект наш
   }
 return false;
 }
+/*----------------------------------------------------------------------------*/
+/*static void PollingDkLine(const TPROJECT *ret)
+{
+char BuffCommand[30];
+const WORD IPPORT = ret->surd.PORT;
+static Type_Step_Machine step = Null;
+static BYTE count = 0,countError = 0,countOk = 0,countClear = 0;
+static bool fMessageErr = false,fMessageOk = false;
+
+// тумблер АВТО включен
+
+switch(step)
+  {
+  case Null: // отправляем
+    if(!countClear){// нулим весь статус
+        countClear=ret->surd.Count;
+        clearAllStatusDk();
+        }else
+        countClear--;
+    CollectCmdBroadCast(BuffCommand,ALL_DK); //
+    DK[0].StatusSurd.CountRequests++; // считаем количество запросов
+    udp_sendStrBroadcast(BuffCommand,IPPORT);
+    step = One;
+    return;
+  case One:
+    count = 0;
+    if(retRequestsVPU()==0){ // поверяем запросы по ВПУ
+      // запросов по ВПУ нет,
+      if(getAllDk()){
+        if(++countOk>=ret->surd.Count){
+          countOk = countError = 0;
+          fMessageErr = false;
+          if(!fMessageOk){Event_Push_Str("Все ДК в сети");fMessageOk = true;}
+          }
+        }else{
+         if(++countError>=ret->surd.Count){
+          countOk = countError = 0;
+          fMessageOk = false;
+          if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
+          }
+        }
+      step = Null;
+      return;
+      }
+  case Two:   // работает ВПУ надо отправить запрос
+    clearAllStatusDk(); // нулим весь статус
+    CollectCmdBroadCast(BuffCommand,SET_PHASE);
+    udp_sendStrBroadcast(BuffCommand,IPPORT);
+    step = Three;
+    return;
+  case Three: // получили все ответы
+    if(getAllDk()){step = Null;return;}
+    if(++count>=3){step = Null;count=0;Event_Push_Str("Ошибки ответов ДК");return;}// надо записать в журнал событие!
+    step = Two;
+    return;
+  default:
+    DK[0].StatusSurd.CountRequests = step = Null;
+    count=countError=countOk = 0;
+    return;
+  }
+}*/

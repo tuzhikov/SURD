@@ -123,26 +123,17 @@ switch (gr_col)
 // фильтрует сигналы с зависимости от типа
 static void Filter_Signal(TONEDIRECT  *diR, bool red_s, bool yel_s, bool green_s)
 {
-    /*const DIR_TYPE   d_type = diR->Type;
-    const int red_g = diR->out.red.group;
-    const int red_gc = diR->out.red.color;
-    const int yel_g = diR->out.yel.group;
-    const int yel_gc = diR->out.yel.color;
-    const int green_g = diR->out.green.group;
-    const int green_gc = diR->out.green.color;*/
-    DIR_TYPE   d_type = diR->Type;
-    int red_g, red_gc;
-    int yel_g, yel_gc;
-    int green_g,  green_gc;
-   //////////////
-    red_g = diR->out.red.group; red_gc = diR->out.red.color;
-    yel_g = diR->out.yel.group; yel_gc = diR->out.yel.color;
-    green_g = diR->out.green.group; green_gc = diR->out.green.color;
+    const DIR_TYPE d_type = diR->Type;
+    const int red_g    = diR->out.red.group;
+    const int red_gc   = diR->out.red.color;
+    const int yel_g    = diR->out.yel.group;
+    const int yel_gc   = diR->out.yel.color;
+    const int green_g  = diR->out.green.group;
+    const int green_gc = diR->out.green.color;
 
-    //
     switch (d_type)
     {
-      case DIR_CCG:case DIR_UDZCG:
+      case DIR_CCG:case DIR_UDZCG:default:
       {
          Set_LED(red_g, red_gc, red_s);
          Set_LED(yel_g, yel_gc, yel_s);
@@ -208,12 +199,12 @@ return result;
 // сравнить два значения по операции из массива-------------------------------//
 static bool checkTWO(bool opr1,bool opr2,LOGIC_OP oper)
 {
-switch (oper)
+switch(oper)
   {
-  case AND:     return opr1&opr2;
-  case OR:      return opr1|opr2;
-  case OR_NO:   return ~(opr1|opr2);
-  case AND_NO:  return ~(opr1&opr2);
+  case AND:     return opr1&&opr2;
+  case OR:      return opr1||opr2;
+  case AND_NO:  return !(opr1&&opr2);
+  case OR_NO:   return !(opr1||opr2);
   }
 return false;
 }

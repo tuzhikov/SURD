@@ -263,7 +263,13 @@ if(prj->surd.ID_DK_CUR < prj->maxDK){ //проверим
     struct in_addr ipold = {pref_get_long(PREF_L_NET_IP)};
     if(addr.addr!=ipold.s_addr){// сохранить если ip другой
             pref_set_long(PREF_L_NET_IP,addr.addr);
-            tn_reset(); // сбросс CPU
+            //tn_reset(); // сбросс CPU
+            lock();
+            struct ip_addr ipaddr   = {pref_get_long(PREF_L_NET_IP)};
+            struct ip_addr netmask  = {pref_get_long(PREF_L_NET_MSK)};
+            struct ip_addr gw       = {pref_get_long(PREF_L_NET_GW)};
+            setNetParamerts(&ipaddr,&netmask,&gw);
+            unlock();
             }
     }
   //save mac addr
@@ -282,7 +288,7 @@ if(prj->surd.ID_DK_CUR < prj->maxDK){ //проверим
        if((MAC1!=MAC1OLD)||(MAC2!=MAC2OLD)){
           pref_set_long(PREF_L_MAC_1,MAC1);
           pref_set_long(PREF_L_MAC_2,MAC2);
-          tn_reset(); // сбросс CPU
+          //tn_reset(); // сбросс CPU
           }
        }
     }
@@ -290,7 +296,7 @@ if(prj->surd.ID_DK_CUR < prj->maxDK){ //проверим
   if(prj->surd.PORT){
     if(pref_get_long(PREF_L_CMD_PORT)!=prj->surd.PORT){
           pref_set_long(PREF_L_CMD_PORT,prj->surd.PORT);
-          tn_reset(); // сбросс CPU
+          //tn_reset(); // сбросс CPU
           }
     }
   }

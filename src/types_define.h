@@ -56,8 +56,14 @@ typedef union _INT_TO_TWO_CHAR_{
 	unsigned short Int;
 }INT_TO_TWO_CHAR;
 /*return value */
-typedef enum _Type_Return_{retOk,retError,retDelay}Type_Return;
+typedef enum _Type_Return_{retNull,retOk,retError,retDelay}Type_Return;
 /*step machine */
-typedef enum _Type_Step_Machine_{Null,One,Two,Three,For,Five,Sex,Seven,Eight,Nine,Ten}Type_Step_Machine;
+//typedef enum _Type_Step_Machine_{Null,One,Two,Three,For,Five,Sex,Seven,Eight,Nine,Ten}Type_Step_Machine;
+#define Null  0
+#define One   1
+#define Two   2
+#define Three 3
+#define For   4
+#define Five  5
 
 #endif // __TYPES_DEFINE_H__
