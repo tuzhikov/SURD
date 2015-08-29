@@ -21,11 +21,11 @@ typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
 typedef enum _Type_LED_{ledOff=0x00,ledBlink1 = 0x01,ledBlink2 = 0x02,
                         ledOn = 0x03}TYPE_LED_SATUS;
 typedef enum _Type_BUTT_{bOff,bDown,bUp,bOn,bEnd}Type_BUTT;
-typedef enum _Type_BUT_{ButPhase1,ButPhase2,ButPhase3,ButPhase4,ButPhase5,ButPhase6,
-                        ButPhase7,ButPhase8,ButTlOff,ButYllBlink,ButManual}Type_BUTTON;
-typedef enum _Type_STATUS_VPU_{tlNo,tlPhase1,tlPhase2,tlPhase3,tlPhase4,
-                               tlPhase5,tlPhase6,tlPhase7,tlPhase8,
-                               tlOff,tlYellBlink,tlManual,tlEnd}Type_STATUS_VPU;
+typedef enum _Type_BUT_{ButPhase1=0,ButPhase2=1,ButPhase3=2,ButPhase4=3,ButPhase5=4,ButPhase6=5,
+                        ButPhase7=6,ButPhase8=7,ButTlOff=8,ButYllBlink=9,ButManual=10}Type_BUTTON;
+typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
+                               tlPhase5=4,tlPhase6=5,tlPhase7=6,tlPhase8=7,
+                               tlOff=8,tlYellBlink=9,tlManual=10,tlEnd=11,tlNo=12}Type_STATUS_VPU;
 //typedef enum _MASK_BYTE_{0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01}MASK_BYTE;
 #pragma pack(push)  /* push current alignment to stack */
 #pragma pack(1)
@@ -41,6 +41,9 @@ typedef struct _VPU_{
   TVPU_BUTTON   rButton[MAX_BUTTON];
   TVPU_LED      rLed[MAX_LED];
   TVPU_LED      led[MAX_LED];
+  int           bUpIndx;  //индекс нажатой кнопки
+  BOOL          RY; //Флаг ручного управления
+  BOOL          myRY; //ручное управление - мы рулим
 }TVPU;
 #pragma pack(pop)
 extern TVPU dataVpu;
@@ -80,14 +83,18 @@ typedef struct _VPU_COMMAND_{
 //////////
 // data exchange beetween master and slave
 typedef struct{
-  BYTE                  statusNEt; //  0- OFF, 1- OK
-  BYTE                  idDk;     //     
-  BYTE                  vpuOn;  // 0- OFF, 1 - ON
+  // Статус сети //  0- OFF, 1- OK
+  BYTE                  statusNEt;
+  ////  DK number   
+  BYTE                  idDk;     
+  // ВПУ включено или запрос РУ. 0- OFF, 1 - ON 
+  BYTE                  vpuOn;  
+  // Сотсояние ВПУ
   Type_STATUS_VPU       vpu; 
 } MASTER_SLAVE_VPU;
 typedef struct{
-  MASTER_SLAVE_VPU   m_to_s; //master to slave status
-  MASTER_SLAVE_VPU   s_to_m; //slave to master VPU status
+  MASTER_SLAVE_VPU   m_to_s; //Управление от мастера для slave
+  MASTER_SLAVE_VPU   s_to_m; //Сигнализация от ВПУ slave
 } VPU_EXCHANGE;
 //////////////
 extern VPU_EXCHANGE  vpu_exch;
