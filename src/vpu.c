@@ -322,7 +322,8 @@ void DK_VPU_YF(void)
 /*----------------------------------------------------------------------------*/
 void DK_VPU_undo(void)
 {
-  Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
+  // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  //Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
   // установили флаги ДК ОС
   for (int i_dk=0; i_dk<DK_N; i_dk++)
            DK[i_dk].OSSOFT = false;
