@@ -15,6 +15,7 @@
 #define MAX_BUTTON                  11
 #define MAX_LED                     11
 #define ADR_VPU                     1
+#define MAX_VPU_FAZE                8    
 
 typedef enum _Type_ANS_{ansNoAnsw=0x00,ansOk=0x01,ansErr=0x02}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
@@ -41,7 +42,7 @@ typedef struct _VPU_{
   TVPU_BUTTON   rButton[MAX_BUTTON];
   TVPU_LED      rLed[MAX_LED];
   TVPU_LED      led[MAX_LED];
-  int           bUpIndx;  //индекс нажатой кнопки
+  int           bOnIndx;  //индекс нажатой кнопки
   BOOL          RY; //Флаг ручного управления
   BOOL          myRY; //ручное управление - мы рулим
 }TVPU;

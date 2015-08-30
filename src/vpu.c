@@ -171,18 +171,18 @@ void bsp_vpu_buff_flush (UART_SBUF *buf)
 BYTE Buff[50];
 static BOOL DataInstall(void)
 {
-PWR485_OFF(); // disabled power RS485
-TX1buff.buff = TX1buff_mem;
-TX1buff.size = sizeof(TX1buff_mem);
-bsp_vpu_buff_flush(&TX1buff);
+  PWR485_OFF(); // disabled power RS485
+  TX1buff.buff = TX1buff_mem;
+  TX1buff.size = sizeof(TX1buff_mem);
+  bsp_vpu_buff_flush(&TX1buff);
 
-RX1buff.buff = RX1buff_mem;
-RX1buff.size = sizeof(RX1buff_mem);
-bsp_vpu_buff_flush(&RX1buff);
-// here these settings from flash
-dataVpu.address = ADR_VPU;
-dataVpu.satus = tlNo;
-PWR485_ON();  // enabled power RS485
+  RX1buff.buff = RX1buff_mem;
+  RX1buff.size = sizeof(RX1buff_mem);
+  bsp_vpu_buff_flush(&RX1buff);
+  // here these settings from flash
+  dataVpu.address = ADR_VPU;
+  dataVpu.satus = tlNo;
+  PWR485_ON();  // enabled power RS485
 return TRUE;
 }
 //------------------------------------------------------------------------------
@@ -232,7 +232,7 @@ for(int i=0;i<MAX_BUTTON;i++)
 /*Clear status Button*/
 static void ClearStatusButton(void)
 {
-for(int i=0;i<MAX_BUTTON;i++)
+  for(int i=0;i<MAX_BUTTON-1;i++)
   {
     dataVpu.rButton[i].On=bOff;
     dataVpu.led[i].On = ledOff;
@@ -244,24 +244,46 @@ for(int i=0;i<MAX_BUTTON;i++)
 // Только ОДна кнопка может быть нажата в текущий момент!
 static void UpdateSatus(void)
 {
-  // bUp может быть только у 1 Кнопки
+  // bOn может быть только у 1 Кнопки
+  // bUp - у нескольких нажатых
   // Ищем индексы 
   int bUpIndx=0xFF;
+  int bOnIndx=0xFF;
   for(int i=0;i<MAX_BUTTON-1;i++) {
     if(dataVpu.rButton[i].On==bUp) {
         bUpIndx=i; break;
     }
   }
-  dataVpu.bUpIndx = bUpIndx; 
-  // Если есть нажатые - чистим остальные
-  if (bUpIndx!=0xFF) 
-    for(int i=0;i<MAX_BUTTON-1;i++) 
-      if (i!= bUpIndx)
-        dataVpu.rButton[i].On=bOff;
+  ////
+  for(int i=0;i<MAX_BUTTON-1;i++) {
+    if(dataVpu.rButton[i].On==bOn) {
+        bOnIndx=i; break;
+    }
+  }
+  /////////////  
+  if (bUpIndx!=0xFF) {
+    //новые нажатые кнопочки
+    bOnIndx=bUpIndx;
+  }
+  dataVpu.bOnIndx = bOnIndx; 
+  // Чистим все 
+  for(int i=0;i<MAX_BUTTON-1;i++) {
+    if (dataVpu.rButton[i].On != bDown)
+      dataVpu.rButton[i].On=bOff;
+    ///
+    dataVpu.led[i].On=ledOff;
+  }
+  // восстанавливаем
+  if (dataVpu.bOnIndx!=0xFF)
+    dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
+  ////////////////////////////  
+  // Если есть нажатые
+  if (bOnIndx!=0xFF) 
+     dataVpu.rButton[bOnIndx].On=bOn;
   //////////////////////
   // ДЛЯ РУ - кнопка с 2-мя программными состояниями
   if(dataVpu.rButton[ButManual].On==bUp)
-     dataVpu.rButton[ButManual].On==bOn; 
+     dataVpu.rButton[ButManual].On=bOn; 
   /////////////
   
 }
@@ -319,11 +341,18 @@ void DK_VPU_YF(void)
     DK[CUR_DK].REQ.req[VPU].source = SERVICE;
     DK[CUR_DK].REQ.req[VPU].presence = true;
 }
+//------------------------------------------------------------------------------
+// отключаем выходы
+static void Clear_STATE(STATE *sta)
+{
+  memset(sta,0,sizeof(STATE));
+  sta->spec_prog = SPEC_PROG_OC;
+}
 /*----------------------------------------------------------------------------*/
 void DK_VPU_undo(void)
 {
-  // TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  //Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
+  
+  Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
   // установили флаги ДК ОС
   for (int i_dk=0; i_dk<DK_N; i_dk++)
            DK[i_dk].OSSOFT = false;
@@ -423,8 +452,8 @@ void VPU_LOGIC()
   }
   ///////
   ///// определяем ВПУ-статус
-  if (dataVpu.bUpIndx!=0xFF) 
-     vpu_exch.s_to_m.vpu = dataVpu.bUpIndx;   
+  if (dataVpu.bOnIndx!=0xFF) 
+     vpu_exch.s_to_m.vpu = dataVpu.bOnIndx;   
    else
     vpu_exch.s_to_m.vpu = tlOff; //нет нажатых кнопок
   /////////////////////
@@ -459,53 +488,48 @@ void VPU_LOGIC()
     ////////////////  
     // Рулим МЫ!!, отображаем состояния
     if (dataVpu.myRY)  {
-        ///// смотрим что сейчас нажато
-        int btn_press = 0xFF; 
-        for(int i=0;i<MAX_BUTTON-1;i++) 
-          if (dataVpu.rButton[ButManual].On==bUp) { 
-            btn_press=i; break;
-          }
-        //// оформляем ЗАПРОС в виде мигания
-        if (btn_press!=0xFF)
-            dataVpu.led[btn_press].On = ledBlink1;
-        /////
+         // запрашиваемое состояние
+         if (dataVpu.bOnIndx!=0xFF) 
+            dataVpu.led[dataVpu.bOnIndx].On = ledBlink1;
+         /////////////////////
+         // текущее состояние 
         // смотрим - что щас на ДК
-        if (DK[CUR_DK].CUR.work = SPEC_PROG){
+        if (SPEC_PROG == DK[CUR_DK].CUR.work){
           //ЖМ
-          if (DK[CUR_DK].CUR.spec_prog = SPEC_PROG_YF) 
-              if (vpu_exch.m_to_s.vpu==tlYellBlink)  
-                dataVpu.led[btn_press].On = ledOn; //совпали состояния
+          if (SPEC_PROG_YF == DK[CUR_DK].CUR.spec_prog) 
+                dataVpu.led[ButYllBlink].On = ledOn; //совпали состояния
           //ОС
-          if (DK[CUR_DK].CUR.spec_prog = SPEC_PROG_OC) 
-              if (vpu_exch.m_to_s.vpu==tlOff)  
-                dataVpu.led[btn_press].On = ledOn;  
+          if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog) 
+                dataVpu.led[ButTlOff].On = ledOn;  
           ////////
         }else {
             // фаза
-            int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
-            if (fz_n!=0xFF)
-                if (DK[CUR_DK].CUR.faza==fz_n)
+            int fz_n =  DK[CUR_DK].CUR.faza;
+            if (fz_n<MAX_VPU_FAZE)
                   dataVpu.led[fz_n].On = ledOn;  
-              
         }
     }
     /////////////
-
 }
 //------------------------------------------------------------------------------
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
   DataInstall();
+  //////
+  // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  vpu_exch.m_to_s.vpuOn=1;
+  vpu_exch.m_to_s.idDk=0xFF;
+  vpu_exch.m_to_s.vpu=3;
+  /////
   for (;;)
     {
       tn_task_sleep(VPU_REFRESH_INTERVAL);
       //////
       if(DataExchange()==tlEnd){
         UpdateSatus();
+        VPU_LOGIC();
       }
-      ////////////
-      VPU_LOGIC();
     }
   
 }
@@ -607,7 +631,8 @@ if(*(data)==cmdButtun){ // command anwer 01| 02 02 00 00
      if(*data&maskButton[inMask++]){
         if(dataVpu.rButton[j].On==bOff)
           dataVpu.rButton[j].On = bDown;
-        /////
+        ///// только для РУ
+        if (j==MAX_BUTTON-1)
         if(dataVpu.rButton[j].On==bOn)
           dataVpu.rButton[j].On = bEnd;
       }
