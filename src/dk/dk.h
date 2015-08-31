@@ -141,7 +141,8 @@ typedef struct __CONTROLLER
 } CONTROLLER;
 // Статус SURD
 typedef struct{
-  DWORD StatusDK;     // мах ДК 32
+  DWORD StatusDK;      // мах ДК 32
+  BYTE  NetworkStatus;
   BYTE  CountRequests;//
 }STATUS_SURD;
 // Структура - ДК
@@ -219,5 +220,7 @@ void DK_Service_faza(unsigned long faz_i);
 const TEXPRESSIONS *retPointExpUDZ(void);
 // указатели на данные текущего ДК
 const TPROJECT *retPointPROJECT(void);
+// current ID DK
+BYTE retCurrenetID(void);
 
 #endif

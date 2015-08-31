@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32   // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     8   // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     11   // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 
@@ -50,8 +50,10 @@ void setStatusDk(const BYTE nDk);
 BOOL getStatusDk(const BYTE nDk);
 void clearStatusDk(const BYTE nDk);
 BOOL getAllDk(void);
+BOOL retNetworkOK(void);
+void flagClaerNetwork(void);
 void clearAllStatusDk(void);
-BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp);
+BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp,const BOOL status);
 
 
 #endif // __CMD_CH_H__

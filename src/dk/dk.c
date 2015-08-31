@@ -1489,3 +1489,9 @@ const TPROJECT *retPointPROJECT(void)
 {
 return &PROJ[CUR_DK];
 }
+/*----------------------------------------------------------------------------*/
+// return current ID
+BYTE retCurrenetID(void)
+{
+return PROJ[CUR_DK].surd.ID_DK_CUR;
+}

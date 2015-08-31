@@ -81,7 +81,7 @@ static void create_cmd_nfo_list()
     CMD_NFO_PUSH_BACK("allpollingdk",&cmd_polling_func,"");
     CMD_NFO_PUSH_BACK("setphaseudp",&cmd_setphase_func,"");
     CMD_NFO_PUSH_BACK("getstatussurd",&cmd_getsatus_func,"");
-    CMD_NFO_PUSH_BACK("SUCCESS:",&cmd_answer_surd_func,""); // проверяем ответы
+    CMD_NFO_PUSH_BACK("SUCCESS:",&cmd_answer_surd_func,""); // проверяем ответы allpolling
     //commands configurator
     CMD_NFO_PUSH_BACK("ifconfig", &cmd_ifconfig_func,"");
     CMD_NFO_PUSH_BACK("config", &cmd_config_func, "");
@@ -404,13 +404,15 @@ if(sscanf(pStrIP,"%u.%u.%u.%u",&ip[0],&ip[1],&ip[2],&ip[3])==4){
 return retNull;
 }
 /* master DK------------------------------------------------------------------*/
-Type_Return masterDk(const TPROJECT *ret)
+// отработаем запросы сетевого статуса
+Type_Return masterDkStatus(const TPROJECT *ret)
 {
 const WORD IPPORT = ret->surd.PORT;
 char BuffCommand[30];
 static int stepMaster = Null;
 static BYTE indeDk = 1,countsend; // счет со второго ДК
 struct ip_addr ipaddr;
+static BOOL fMessageErr = false,fMessageOk = false;
 
 switch(stepMaster)
   {
@@ -423,20 +425,73 @@ switch(stepMaster)
     if(retSurdIP(indeDk,&ipaddr)==retOk){
       udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
       stepMaster=Two;
-      }else stepMaster=Null;
+      }else {
+      stepMaster=Three;
+      }
     return retNull;
   case Two: // answer
     stepMaster=One;
     if(getStatusDk(indeDk)){//ответ получен
-      if(indeDk<ret->maxDK)indeDk++;
-                  else {indeDk = 1;stepMaster = Three;}
+      if(++indeDk<ret->maxDK){
+        stepMaster=Null;}
+        else{
+        stepMaster=Three;}
       }
-    if(++countsend>3){ // сбросс всего
-      stepMaster = Null;return retError;}
-    return retNull;
-  case Three: // сообщения
+    if(++countsend>3){ // ответа нет 3 раза
+      stepMaster = Three;return retError;
+      }
+    return retOk;
+  case Three: // установить сетевой статус
+    if(getAllDk()){
+      DK[CUR_DK].StatusSurd.NetworkStatus = true;
+      fMessageErr = false;
+      if(!fMessageOk){Event_Push_Str("SUCCESS:Все ДК в сети");fMessageOk = true;}
+      }else{
+      DK[CUR_DK].StatusSurd.NetworkStatus = false;
+      fMessageOk = false;
+      if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
+      }
+    indeDk = 1; // опрос с первого slave
+    stepMaster = Null;
+    return retOk;
+  default:
+    stepMaster = Null;return retError;
+  }
+}
+// отработаем VPU
+Type_Return masterDkVPU(const TPROJECT *ret)
+{
+const WORD IPPORT = ret->surd.PORT;
+char BuffCommand[30];
+static int stepMasterVpu = Null;
+static BYTE indeDk = 1,countsend; // счет со второго ДК
+struct ip_addr ipaddr;
+static BOOL fMessageErr = false,fMessageOk = false;
 
+switch(stepMasterVpu)
+  {
+  case Null:
     return retNull;
+  default:
+    stepMasterVpu = Null;return retError;
+  }
+}
+// автомат работы мастера
+Type_Return masterDk(const TPROJECT *ret)
+{
+static int stepMaster = Null;
+
+switch(stepMaster)
+  {
+  case Null:
+   retRequestsVPU();
+   retNetworkOK();
+  case One: // получаем сетевой статус
+    if(masterDkStatus(ret)&(retOk|retError))stepMaster = Null;
+    return retOk;
+  case Two: // здесь включаем фазы по UDP
+    if(masterDkVPU(ret)&(retOk|retError))stepMaster = Null;
+    return retOk;
   default:
     stepMaster = Null;return retError;
   }
@@ -452,13 +507,14 @@ struct ip_addr ipaddr;
 
 switch(stepSlave)
   {
-  case Null:
+  case Null:// есть события по VPU
       if(retRequestsVPU())stepSlave = One;
                      else stepSlave = Three;
       contQuery=0;
-      return retOk;
+      return retNull;
   // есть событие по VPU отправка UDP
   case One:
+      if(!retNetworkOK()){stepSlave = Three;return retNull;} // Не все ДК в сети
       CollectCmd(BuffCommand,SET_PHASE);
       retSurdIP(0,&ipaddr);
       udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
@@ -467,23 +523,26 @@ switch(stepSlave)
   case Two:
       if(contQuery>=MAX_QURY_SURD)stepSlave = Null;
                              else stepSlave = One;
-      return retOk;
+      return retNull;
   //запрос статуса СУРД
   case Three:
+    flagClaerNetwork();
+    stepSlave = For;
+  case For:
       CollectCmd(BuffCommand,GET_STATUS);
-      retSurdIP(0,&ipaddr);
+      retSurdIP(0,&ipaddr); // ip address of the master
       udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
       contQuery++;
-      stepSlave = For;
+      stepSlave = Five;
       return retOk;
-  case For:
-      stepSlave = Three;
-      if((getAllDk())&&(contQuery>MAX_QURY_SURD)){ // all OK
+  case Five:
+      stepSlave = For;
+      if((retNetworkOK())&&(contQuery>MAX_QURY_SURD)){ // все ДК в сети
           stepSlave = Null;
           fMessageErr = false;
-          if(!fMessageOk){Event_Push_Str("ERROR: Все ДК в сети");fMessageOk = true;}
+          if(!fMessageOk){Event_Push_Str("SUCCESS: Все ДК в сети");fMessageOk = true;}
           }
-      if((!getAllDk())&&(contQuery>MAX_QURY_SURD)){ // error
+      if((!retNetworkOK())&&(contQuery>MAX_QURY_SURD)){ // error
           stepSlave = Null;
           fMessageOk = false;
           if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
@@ -522,12 +581,10 @@ static void task_cmd_func(void* param)
              (!DK[CUR_DK].AUTO)){// нет режима программирования и не включен режим авто
                const TPROJECT *pPr = retPointPROJECT();   // получить данные
                PollingDkLine(pPr);
-              }else{clearAllStatusDk();}
-          // вернуть ip параметры
-          /*if(getFlagDefaultIP()){
-            saveDatePorojectIP(); // параметры из структуры сбросс
-            } */
-          }else{ // есть что то в буффере
+               }else{
+               clearAllStatusDk();
+               }
+          }else{ // есть что то в буффере UDP
           // есть ошибки
           if(answer != TERR_NO_ERR){
             dbg_puts("tn_queue_receive(&g_cmd_dque) error");
@@ -650,6 +707,16 @@ static BOOL ip_security_check(struct ip_addr* srv_addr)
 /*----------------------------------------------------------------------------*/
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
+// проверка все ДК в сети
+BOOL retNetworkOK(void)//network
+{
+return (BOOL)DK[CUR_DK].StatusSurd.NetworkStatus;
+}
+// clear flag net
+void flagClaerNetwork(void)
+{
+DK[CUR_DK].StatusSurd.NetworkStatus = NULL;
+}
 // проверить все ДК на связи.
 BOOL getAllDk(void)
 {
@@ -682,19 +749,23 @@ DK[CUR_DK].StatusSurd.StatusDK&=~(1<<nDk);
 void clearAllStatusDk(void)
 {
 DK[CUR_DK].StatusSurd.StatusDK=NULL;
+DK[CUR_DK].StatusSurd.NetworkStatus = NULL;
 }
-// устанавливаем ответы DK
-BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp)
+// устанавливаем ответы DK для мастера
+BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp,const BOOL status)
 {
 const TPROJECT *prj = retPointPROJECT();
 //сравним  IDP
 const long idp_calc = retCRC32();
 if(idp==idp_calc){// проект наш
   //проверка пароля
-
   if(pass==prj->surd.Pass){
     if(id<prj->maxDK){
-      setStatusDk(id);//дк ответил
+      if(prj->surd.ID_DK_CUR){ // забирают инфу slave
+        DK[CUR_DK].StatusSurd.NetworkStatus = status;
+        }else{ // собирает сообщения мастер
+        setStatusDk(id);//дк ответил
+        }
       return true;
       }
     }

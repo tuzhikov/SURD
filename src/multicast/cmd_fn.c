@@ -70,7 +70,6 @@ static void udp_send_sensors(struct cmd_raw* cmd_p);
 
 static err_t udp_send_config(struct cmd_raw* cmd_p);
 static err_t udp_send_surd(struct cmd_raw* cmd_p);
-static err_t udp_getsatus_surd(struct cmd_raw* cmd_p);
 
 static struct cmd_raw debug_cmd_p;
 
@@ -117,15 +116,16 @@ if (argc != 0) // пришло не то
     return;
     }
 //собираем команду для отправки
-udp_getsatus_surd(cmd_p);
+udp_send_surd(cmd_p);
 }
-// пришел ответ по СУРД, только запись отправки нет
+// пришел ответ от slave SURD, только запись отправки нет
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
 if(argc<4){ // пришло не то
     return;
     }
 unsigned long idp,pass,id,ver;
+BOOL StatusSurd = false;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -140,7 +140,13 @@ if(strcmp(argv[4],"PASSW:")==0){
 if(strcmp(argv[6],"VER:")==0){
   sscanf(argv[7],"%u",&ver);
   }
-checkMessageDk((BYTE)id,pass,idp); // устанвоим статусы
+if(strcmp(argv[8],"SURD:")==0){
+  if(strcmp(argv[9],"NO")==0){
+    StatusSurd = false;
+    }else{
+    StatusSurd = true;}
+  }
+checkMessageDk((BYTE)id,pass,idp,StatusSurd); // устанвоим статусы
 }
 // пришла информация о фазах, работаем с ВПУ----------------------------------//
 void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
@@ -209,7 +215,7 @@ void cmd_set_func(struct cmd_raw* cmd_p, int argc, char** argv)
     // проверить вложенные команды
     process_set_cmd(cmd_p, argv[0], argv[1]);
 }
-/////////////////
+//command test, OS, UNDO,
 void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
   if (strcmp(argv[0], "OS") == 0) //
@@ -228,6 +234,7 @@ void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
     {
     DK_Service_undo();
     udp_send_success(cmd_p);
+    tn_reset();
     return;
     }
     else if (strcmp(argv[0], "phase") == 0)
@@ -1473,28 +1480,24 @@ return udp_sendstr(cmd_p, buf);
 static err_t udp_send_info(struct cmd_raw* cmd_p)
 {
     char buf[192];
-    //char buf1[128];
     const long idp = retCRC32();
+    const BYTE id = retCurrenetID()+1;
     snprintf(buf, sizeof (buf),
         "SUCCESS:%s\r\n"
         "VER.H %u\r\n"
         "VER.L %u.%u\r\n"
         "%s\r\n"
         "%s\r\n"
+        "ID  :%u\r\n"
         "IDP :%u\r\n",
         APP_NAME,
         VER_MAJOR,
         VER_MINOR,VER_MINORER,
         VER_SVN_DATE,
         APP_COPYRIGHT,
+        id,
         idp);
     //get_version(buf, sizeof(buf));
-    /*snprintf (buf1, sizeof(buf1),
-        "SUCCESS:%s\n"
-        "CPU: LM3S9B96\n"
-        "Clk: %u MHz\n\n",
-        buf, hw_sys_clock()
-        ); */
     return udp_sendstr(cmd_p, buf);
 }
 /*----------------------------------------------------------------------------*/
@@ -1534,7 +1537,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const TVPU *vpu = retDateVPU();
     char tmpbuff[20];
     retTextStatusVPU(tmpbuff,vpu->satus);
-    const bool StatusDK = getAllDk();
+    const bool StatusDK = retNetworkOK();
 
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
@@ -1542,15 +1545,15 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
         "VER:   %u\r\n"
-        "VPU:   %s\r\n"
-        "SURD:  %s\r\n",
+        "SURD:  %s\r\n"
+        "VPU:   %s\r\n",
         prg->surd.ID_DK_CUR,
         idp,
         prg->surd.Pass,
         VER_MAJOR,
-        tmpbuff,
-        StatusDK?"ОК":"NO");
-
+        StatusDK? "OK":" NO",
+        tmpbuff);
+/*
 char BuffTemp[70];
 strcpy(BuffTemp,"BUTTON:");
 // кнопки нажаты
@@ -1573,20 +1576,7 @@ for(int i=0;i<MAX_BUTTON;i++)
         else if(vpu->led[i].On==ledOn)strcat(BuffTemp,"ON");
   }
 strcat(BuffTemp,"\r\n");
-strcat(buf,BuffTemp);
-return udp_sendstr(cmd_p, buf); // отправка буффера
-}
-/*----------------------------------------------------------------------------*/
-// ответ на get status
-static err_t udp_getsatus_surd(struct cmd_raw* cmd_p)
-{
-char buf[200];
-const bool StatusDK = getAllDk();
-
-snprintf(buf, sizeof(buf),
-        "SUCCESS: "
-        "SURD:  %s\r\n",
-        StatusDK?"ОК":"NO");
+strcat(buf,BuffTemp);*/
 return udp_sendstr(cmd_p, buf); // отправка буффера
 }
 /*----------------------------------------------------------------------------*/
