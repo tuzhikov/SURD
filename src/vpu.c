@@ -47,6 +47,18 @@ static Type_ANS StrGetVPU(UART_SBUF * buf,U08* str, U16 size);
 //static void OSDk(const BOOL Enabled);
 ////////////////////////////////////////////////
 // Structure for exchange between master and slave
+// Алгоритм общения такой.
+// 1) Если на пульте включена кнопка РУ - 
+//      s_to_m.vpuOn=1
+// 2) В s_to_m.vpu -статус ВПУ, а по-сути - текущая нажатая кнопка
+//      или tlNo (ничего не нажато. нет запросов)
+// 3) Если m_to_s.vpuOn==1 , то в сети кто-то рулит по ВПУ
+// 4) Если m_to_s.vpu не равно tlNo, устанавливается соответствующее 
+//    состояние.
+//
+//
+//
+//
 VPU_EXCHANGE  vpu_exch; 
 
 /*---------- Functions----------------------------------------------------*/
@@ -455,26 +467,31 @@ void VPU_LOGIC()
   if (dataVpu.bOnIndx!=0xFF) 
      vpu_exch.s_to_m.vpu = dataVpu.bOnIndx;   
    else
-    vpu_exch.s_to_m.vpu = tlOff; //нет нажатых кнопок
+    vpu_exch.s_to_m.vpu = tlNo; //нет нажатых кнопок
   /////////////////////
     //////////////////////////
     // проверка включенного РУ с мастера
     // кто-то рулит - выставляем в ДК состояния
     if (dataVpu.RY) {
-          if (vpu_exch.m_to_s.vpu==tlYellBlink)
-              DK_VPU_YF();
-          if (vpu_exch.m_to_s.vpu==tlOff)
-              DK_VPU_OS();
+      if (vpu_exch.m_to_s.vpu==tlYellBlink) {
+        DK_VPU_YF();
+        return;
+      }
+      if (vpu_exch.m_to_s.vpu==tlOff) {
+        DK_VPU_OS();
+        return;
+      }
           //////
           // Фазы
           int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
-          if (fz_n!=0xFF)
+      if (fz_n!=0xFF) {
             DK_VPU_faza(fz_n);
-          // есть РУ, но еще ничего не установлено
-          // ?????
-          if (vpu_exch.m_to_s.vpu==tlManual)
-              DK_VPU_undo();
-          //////////////
+            return;
+      }
+      /////////////
+      // ничего осознанного - вываливаемся
+      DK_VPU_undo();
+      //////////////
     }
     //////////////////////
     //////////////////////////
@@ -517,10 +534,7 @@ static void task_VPU_func(void* param)
 {
   DataInstall();
   //////
-  // TEST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  vpu_exch.m_to_s.vpuOn=1;
-  vpu_exch.m_to_s.idDk=0xFF;
-  vpu_exch.m_to_s.vpu=3;
+  memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
   /////
   for (;;)
     {
@@ -615,7 +629,6 @@ return ansNoAnsw;
 // bOff - кнопка не была нажата 
 // bOn - кнопка была нажата - зафиксированное логическое состояние
 //    на основании последовательности bDown->bUp
-// bOn - только для РУ
 // bDown - статус полученный с ВПУ о нажатой кнопке
 // bUp - кнока отпущена
 static Type_ANS parserData(U8* data, U8 size)
