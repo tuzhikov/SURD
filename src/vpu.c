@@ -453,7 +453,9 @@ void VPU_LOGIC()
   dataVpu.RY = vpu_exch.m_to_s.vpuOn;
   //myRY - наш ВПУ рулит
   if (dataVpu.RY) 
-    dataVpu.myRY = (vpu_exch.m_to_s.idDk==PROJ[0].surd.ID_DK_CUR) ? 1 : 0;
+      dataVpu.myRY = (vpu_exch.m_to_s.idDk==PROJ[0].surd.ID_DK_CUR) ? 1 : 0;
+    else
+      dataVpu.myRY = 0;
   /////////////////
   ////////////////
   // Обратный канал от нас Мастеру  
@@ -475,33 +477,37 @@ void VPU_LOGIC()
     if (dataVpu.RY) {
       if (vpu_exch.m_to_s.vpu==tlYellBlink) {
         DK_VPU_YF();
-        return;
       }
+      /////////
       if (vpu_exch.m_to_s.vpu==tlOff) {
         DK_VPU_OS();
-        return;
       }
-          //////
-          // Фазы
-          int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
+      //////
+      // Фазы
+      int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
       if (fz_n!=0xFF) {
             DK_VPU_faza(fz_n);
-            return;
       }
       /////////////
       // ничего осознанного - вываливаемся
-      DK_VPU_undo();
+      if (vpu_exch.m_to_s.vpu > tlYellBlink)
+        DK_VPU_undo();
       //////////////
     }
+    else
+      DK_VPU_undo();
     //////////////////////
     //////////////////////////
     // Отображение
     // запроса РУ
-    if (dataVpu.rButton[ButManual].On==bOn)
+    if (bOn == dataVpu.rButton[ButManual].On) {
       if (dataVpu.myRY)
           dataVpu.led[ButManual].On = ledOn;
       else
           dataVpu.led[ButManual].On = ledBlink1;
+    } else {
+      dataVpu.led[ButManual].On = ledOff;
+    }
     ////////////////  
     // Рулим МЫ!!, отображаем состояния
     if (dataVpu.myRY)  {
@@ -519,12 +525,25 @@ void VPU_LOGIC()
           if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog) 
                 dataVpu.led[ButTlOff].On = ledOn;  
           ////////
-        }else {
-            // фаза
+        }
+        ///////////////////
+        // Одиночные фазы (режим ВПУ?)
+        if (SINGLE_FAZA == DK[CUR_DK].CUR.work){
             int fz_n =  DK[CUR_DK].CUR.faza;
             if (fz_n<MAX_VPU_FAZE)
                   dataVpu.led[fz_n].On = ledOn;  
         }
+        ////////////////////////
+        // Программная фазы - надо ли ее отображать вообще?
+        if (PROG_FAZA == DK[CUR_DK].CUR.work){
+            int fz_prog =  DK[CUR_DK].CUR.prog_faza;
+            int fz_n =   PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa;
+            if (fz_n<MAX_VPU_FAZE)
+                  dataVpu.led[fz_n].On = ledOn;  
+        }
+        ////////////////////////
+        
+        
     }
     /////////////
 }
@@ -535,6 +554,8 @@ static void task_VPU_func(void* param)
   DataInstall();
   //////
   memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
+  vpu_exch.m_to_s.vpuOn= 0;
+  vpu_exch.m_to_s.vpu = tlNo;                                  
   /////
   for (;;)
     {
