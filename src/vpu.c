@@ -48,18 +48,18 @@ static Type_ANS StrGetVPU(UART_SBUF * buf,U08* str, U16 size);
 ////////////////////////////////////////////////
 // Structure for exchange between master and slave
 // Алгоритм общения такой.
-// 1) Если на пульте включена кнопка РУ - 
+// 1) Если на пульте включена кнопка РУ -
 //      s_to_m.vpuOn=1
 // 2) В s_to_m.vpu -статус ВПУ, а по-сути - текущая нажатая кнопка
 //      или tlNo (ничего не нажато. нет запросов)
 // 3) Если m_to_s.vpuOn==1 , то в сети кто-то рулит по ВПУ
-// 4) Если m_to_s.vpu не равно tlNo, устанавливается соответствующее 
+// 4) Если m_to_s.vpu не равно tlNo, устанавливается соответствующее
 //    состояние.
 //
 //
 //
 //
-VPU_EXCHANGE  vpu_exch; 
+VPU_EXCHANGE  vpu_exch;
 
 /*---------- Functions----------------------------------------------------*/
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -258,7 +258,7 @@ static void UpdateSatus(void)
 {
   // bOn может быть только у 1 Кнопки
   // bUp - у нескольких нажатых
-  // Ищем индексы 
+  // Ищем индексы
   int bUpIndx=0xFF;
   int bOnIndx=0xFF;
   for(int i=0;i<MAX_BUTTON-1;i++) {
@@ -272,13 +272,13 @@ static void UpdateSatus(void)
         bOnIndx=i; break;
     }
   }
-  /////////////  
+  /////////////
   if (bUpIndx!=0xFF) {
     //новые нажатые кнопочки
     bOnIndx=bUpIndx;
   }
-  dataVpu.bOnIndx = bOnIndx; 
-  // Чистим все 
+  dataVpu.bOnIndx = bOnIndx;
+  // Чистим все
   for(int i=0;i<MAX_BUTTON-1;i++) {
     if (dataVpu.rButton[i].On != bDown)
       dataVpu.rButton[i].On=bOff;
@@ -288,16 +288,16 @@ static void UpdateSatus(void)
   // восстанавливаем
   if (dataVpu.bOnIndx!=0xFF)
     dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
-  ////////////////////////////  
+  ////////////////////////////
   // Если есть нажатые
-  if (bOnIndx!=0xFF) 
+  if (bOnIndx!=0xFF)
      dataVpu.rButton[bOnIndx].On=bOn;
   //////////////////////
   // ДЛЯ РУ - кнопка с 2-мя программными состояниями
   if(dataVpu.rButton[ButManual].On==bUp)
-     dataVpu.rButton[ButManual].On=bOn; 
+     dataVpu.rButton[ButManual].On=bOn;
   /////////////
-  
+
 }
 //------------------------------------------------------------------------------
 /*Command VPU*/
@@ -363,7 +363,7 @@ static void Clear_STATE(STATE *sta)
 /*----------------------------------------------------------------------------*/
 void DK_VPU_undo(void)
 {
-  
+
   Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
   // установили флаги ДК ОС
   for (int i_dk=0; i_dk<DK_N; i_dk++)
@@ -431,7 +431,7 @@ Type_STATUS_VPU DataExchange(void)
 // возвращает номер фазы по статусу ВПУ. 00xFF - если статус - не фаза
 int ret_FAZA_num(Type_STATUS_VPU vpu)
 {
-  int ret_f=0xFF;  
+  int ret_f=0xFF;
   switch (vpu_exch.m_to_s.vpu){
             case tlPhase1: ret_f=0; break;
             case tlPhase2: ret_f=1; break;
@@ -441,7 +441,7 @@ int ret_FAZA_num(Type_STATUS_VPU vpu)
             case tlPhase6: ret_f=5; break;
             case tlPhase7: ret_f=6; break;
             case tlPhase8: ret_f=7; break;
-            default: 
+            default:
   }///////////
   return(ret_f);
 }
@@ -452,22 +452,22 @@ void VPU_LOGIC()
   // Устанавливаем флаги РУ
   dataVpu.RY = vpu_exch.m_to_s.vpuOn;
   //myRY - наш ВПУ рулит
-  if (dataVpu.RY) 
+  if (dataVpu.RY)
       dataVpu.myRY = (vpu_exch.m_to_s.idDk==PROJ[0].surd.ID_DK_CUR) ? 1 : 0;
     else
       dataVpu.myRY = 0;
   /////////////////
   ////////////////
-  // Обратный канал от нас Мастеру  
+  // Обратный канал от нас Мастеру
   if(dataVpu.rButton[ButManual].On==bOn  ){
-     vpu_exch.s_to_m.vpuOn=1; 
+     vpu_exch.s_to_m.vpuOn=1;
   } else { //PY отключено
-     vpu_exch.s_to_m.vpuOn=0; 
+     vpu_exch.s_to_m.vpuOn=0;
   }
   ///////
   ///// определяем ВПУ-статус
-  if (dataVpu.bOnIndx!=0xFF) 
-     vpu_exch.s_to_m.vpu = dataVpu.bOnIndx;   
+  if (dataVpu.bOnIndx!=0xFF)
+     vpu_exch.s_to_m.vpu = dataVpu.bOnIndx;
    else
     vpu_exch.s_to_m.vpu = tlNo; //нет нажатых кнопок
   /////////////////////
@@ -508,22 +508,22 @@ void VPU_LOGIC()
     } else {
       dataVpu.led[ButManual].On = ledOff;
     }
-    ////////////////  
+    ////////////////
     // Рулим МЫ!!, отображаем состояния
     if (dataVpu.myRY)  {
          // запрашиваемое состояние
-         if (dataVpu.bOnIndx!=0xFF) 
+         if (dataVpu.bOnIndx!=0xFF)
             dataVpu.led[dataVpu.bOnIndx].On = ledBlink1;
          /////////////////////
-         // текущее состояние 
+         // текущее состояние
         // смотрим - что щас на ДК
         if (SPEC_PROG == DK[CUR_DK].CUR.work){
           //ЖМ
-          if (SPEC_PROG_YF == DK[CUR_DK].CUR.spec_prog) 
+          if (SPEC_PROG_YF == DK[CUR_DK].CUR.spec_prog)
                 dataVpu.led[ButYllBlink].On = ledOn; //совпали состояния
           //ОС
-          if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog) 
-                dataVpu.led[ButTlOff].On = ledOn;  
+          if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog)
+                dataVpu.led[ButTlOff].On = ledOn;
           ////////
         }
         ///////////////////
@@ -531,7 +531,7 @@ void VPU_LOGIC()
         if (SINGLE_FAZA == DK[CUR_DK].CUR.work){
             int fz_n =  DK[CUR_DK].CUR.faza;
             if (fz_n<MAX_VPU_FAZE)
-                  dataVpu.led[fz_n].On = ledOn;  
+                  dataVpu.led[fz_n].On = ledOn;
         }
         ////////////////////////
         // Программная фазы - надо ли ее отображать вообще?
@@ -539,11 +539,11 @@ void VPU_LOGIC()
             int fz_prog =  DK[CUR_DK].CUR.prog_faza;
             int fz_n =   PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa;
             if (fz_n<MAX_VPU_FAZE)
-                  dataVpu.led[fz_n].On = ledOn;  
+                  dataVpu.led[fz_n].On = ledOn;
         }
         ////////////////////////
-        
-        
+
+
     }
     /////////////
 }
@@ -555,7 +555,7 @@ static void task_VPU_func(void* param)
   //////
   memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
   vpu_exch.m_to_s.vpuOn= 0;
-  vpu_exch.m_to_s.vpu = tlNo;                                  
+  vpu_exch.m_to_s.vpu = tlNo;
   /////
   for (;;)
     {
@@ -566,7 +566,7 @@ static void task_VPU_func(void* param)
         VPU_LOGIC();
       }
     }
-  
+
 }
 //------------------------------------------------------------------------------
 /*
@@ -647,7 +647,7 @@ return ansNoAnsw;
 }
 //------------------------------------------------------------------------------
 /* Parser Data */
-// bOff - кнопка не была нажата 
+// bOff - кнопка не была нажата
 // bOn - кнопка была нажата - зафиксированное логическое состояние
 //    на основании последовательности bDown->bUp
 // bDown - статус полученный с ВПУ о нажатой кнопке
@@ -660,7 +660,7 @@ data++; // address ID
 if(*(data)==cmdButtun){ // command anwer 01| 02 02 00 00
   data++;data++;
   U8 inMask = NULL;
-  for (int j=0;j<MAX_BUTTON;j++) 
+  for (int j=0;j<MAX_BUTTON;j++)
     {
      if(*data&maskButton[inMask++]){
         if(dataVpu.rButton[j].On==bOff)
@@ -701,7 +701,7 @@ const TVPU *retDateVPU(void){return &dataVpu;}
 /*запросы по ВПУ отправляем true если все ДК в системе*/
 BYTE retRequestsVPU(void)
 {
-  return false;
+return vpu_exch.s_to_m.vpuOn; // ВПУ включено или запрос РУ. 0- OFF, 1 - ON
 }
 /*--------------------- return text status ----------------------------*/
 void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status)

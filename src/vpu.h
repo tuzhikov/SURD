@@ -15,7 +15,7 @@
 #define MAX_BUTTON                  11
 #define MAX_LED                     11
 #define ADR_VPU                     1
-#define MAX_VPU_FAZE                8    
+#define MAX_VPU_FAZE                8
 
 typedef enum _Type_ANS_{ansNoAnsw=0x00,ansOk=0x01,ansErr=0x02}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
@@ -86,12 +86,12 @@ typedef struct _VPU_COMMAND_{
 typedef struct{
   // Статус сети //  0- OFF, 1- OK
   BYTE                  statusNEt;
-  ////  DK number   
-  BYTE                  idDk;     
-  // ВПУ включено или запрос РУ. 0- OFF, 1 - ON 
-  BYTE                  vpuOn;  
+  ////  DK number
+  BYTE                  idDk;
+  // ВПУ включено или запрос РУ. 0- OFF, 1 - ON
+  BYTE                  vpuOn;
   // Сотсояние ВПУ
-  Type_STATUS_VPU       vpu; 
+  Type_STATUS_VPU       vpu;
 } MASTER_SLAVE_VPU;
 typedef struct{
   MASTER_SLAVE_VPU   m_to_s; //Управление от мастера для slave

@@ -124,8 +124,7 @@ void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<4){ // пришло не то
     return;
     }
-unsigned long idp,pass,id,ver;
-BOOL StatusSurd = false;
+unsigned long idp=0,pass=0,id=0,dn=0;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -137,20 +136,41 @@ if(strcmp(argv[2],"IDP:")==0){
 if(strcmp(argv[4],"PASSW:")==0){
   sscanf(argv[5],"%u",&pass);
   }
-if(strcmp(argv[6],"VER:")==0){
-  sscanf(argv[7],"%u",&ver);
+if(strcmp(argv[6],"DN:")==0){
+  sscanf(argv[7],"%u",&dn);
+  }
+/*if(strcmp(argv[8],"VER:")==0){
+  sscanf(argv[9],"%u",&ver);
   }
 if(strcmp(argv[8],"SURD:")==0){
   if(strcmp(argv[9],"NO")==0){
     StatusSurd = false;
     }else{
     StatusSurd = true;}
-  }
-checkMessageDk((BYTE)id,pass,idp,StatusSurd); // устанвоим статусы
+  }*/
+checkMessageDk((BYTE)id,pass,idp,dn); // установим статусы
 }
 // пришла информация о фазах, работаем с ВПУ----------------------------------//
 void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
+if(argc<4){ // пришло не то
+    return;
+    }
+unsigned long idp=0,pass=0,id=0,phase=0;
+// проверка сообщения
+if(strcmp(argv[0],"ID:")==0){
+  sscanf(argv[1],"%u",&id);
+  }
+if(strcmp(argv[2],"IDP:")==0){
+  sscanf(argv[3],"%u",&idp);
+  }
+if(strcmp(argv[4],"PASSW:")==0){
+  sscanf(argv[5],"%u",&pass);
+  }
+if(strcmp(argv[6],"PHASE:")==0){
+  sscanf(argv[7],"%u",&phase);
+  }
+checkPhaseDk((BYTE)id,pass,idp,phase);
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
@@ -1537,21 +1557,23 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const TVPU *vpu = retDateVPU();
     char tmpbuff[20];
     retTextStatusVPU(tmpbuff,vpu->satus);
-    const bool StatusDK = retNetworkOK();
-
+    const bool StatusNet = retNetworkOK();
+    const DWORD StatusDK  = retStatusSURD();
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
         "ID:    %u\r\n"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
+        "DN:    %u\r\n"
         "VER:   %u\r\n"
         "SURD:  %s\r\n"
         "VPU:   %s\r\n",
         prg->surd.ID_DK_CUR,
         idp,
         prg->surd.Pass,
+        StatusDK,
         VER_MAJOR,
-        StatusDK? "OK":" NO",
+        StatusNet? "OK":" NO",
         tmpbuff);
 /*
 char BuffTemp[70];
