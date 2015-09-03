@@ -67,6 +67,7 @@ TVPU          dataVpuN[VPU_COUNT];
 int           cur_vpu=0;  
 
 /*---------- Functions----------------------------------------------------*/
+// переключает конекст ВПУ-пультов
 void Switch_VPU_Context(int vpu_new)
 {
   // 1 сохраняем текущий контекст
