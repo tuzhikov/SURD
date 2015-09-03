@@ -27,7 +27,7 @@
 
 // lwip/lwiplib.c
 #define TASK_ETH_PRI                12
-#define TASK_ETH_STK_SZ             128*8//256
+#define TASK_ETH_STK_SZ             128*4//256
 
 // ipmulticast/cmd_ch.c
 #define TASK_CMD_PRI                16

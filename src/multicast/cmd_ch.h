@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32   // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     11   // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     9   // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 
@@ -46,14 +46,18 @@ err_t       udp_sendstr(struct cmd_raw* cmd_p, char const* s);
 err_t       udp_sendbuf(struct cmd_raw* cmd_p, char const* buf, int len);
 void        get_cmd_ch_ip(struct ip_addr* ipaddr);
 /*----------------------------------------------------------------------------*/
+DWORD retStatusSURD(void);
 void setStatusDk(const BYTE nDk);
 BOOL getStatusDk(const BYTE nDk);
-void clearStatusDk(const BYTE nDk);
+void clearStatusOneDk(const BYTE nDk);
 BOOL getAllDk(void);
 BOOL retNetworkOK(void);
 void flagClaerNetwork(void);
-void clearAllStatusDk(void);
-BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp,const BOOL status);
+void flagSetNetwork(const BOOL flag);
+void clearStatusDk(void);
+BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp,const DWORD st);
+BOOL checkPhaseDk(const BYTE id,const DWORD pass,const DWORD idp,const DWORD phase);
+
 
 
 #endif // __CMD_CH_H__

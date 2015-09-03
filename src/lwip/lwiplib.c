@@ -263,7 +263,12 @@ static void task_eth_func(void* param)
     for (;;)
     {
         unsigned int fpattern;
+
+        hw_watchdog_clear();// clear WD
+
         tn_event_wait(&g_eth_evt, EVENT_ETH_TIMER | EVENT_ETH_DATA, TN_EVENT_WCOND_OR, &fpattern, TN_WAIT_INFINITE);
+
+        hw_watchdog_clear();// clear WD
 
         if (fpattern & EVENT_ETH_TIMER)
         {
