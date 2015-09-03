@@ -27,7 +27,6 @@ static UART_SBUF   TX1buff, RX1buff;
 static U08         TX1buff_mem[TX1_BUFF_SIZE];
 static U08         RX1buff_mem[RX1_BUFF_SIZE];
 /*VPU*/
-TVPU dataVpu;
 /*TASK*/
 #define VPU_REFRESH_INTERVAL        100
 static TN_TCB task_VPU_tcb;
@@ -59,9 +58,28 @@ static Type_ANS StrGetVPU(UART_SBUF * buf,U08* str, U16 size);
 //
 //
 //
-VPU_EXCHANGE  vpu_exch; 
+VPU_EXCHANGE  vpu_exch;
+TVPU dataVpu;
+
+/////////
+VPU_EXCHANGE  vpu_exchN[VPU_COUNT]; 
+TVPU          dataVpuN[VPU_COUNT];
+int           cur_vpu=0;  
 
 /*---------- Functions----------------------------------------------------*/
+void Switch_VPU_Context(int vpu_new)
+{
+  // 1 сохраняем текущий контекст
+  memcpy(&vpu_exchN[cur_vpu], &vpu_exch, sizeof(vpu_exch));
+  memcpy(&dataVpuN[cur_vpu],  &dataVpu, sizeof(dataVpu));
+  //2   переходим на новый контекст
+  memcpy(&vpu_exch, &vpu_exchN[vpu_new], sizeof(vpu_exch));
+  memcpy(&dataVpu, &dataVpuN[vpu_new],  sizeof(dataVpu));
+  ////
+  cur_vpu = vpu_new;
+  
+}
+//------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
 {
     dbg_printf("Initializing VPU UART..."); //сообщение, что запустили поток
@@ -555,15 +573,21 @@ static void task_VPU_func(void* param)
   //////
   memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
   vpu_exch.m_to_s.vpuOn= 0;
-  vpu_exch.m_to_s.vpu = tlNo;                                  
+  vpu_exch.m_to_s.vpu = tlNo;   
+  for (int i=0; i<VPU_COUNT; i++) {
+    vpu_exchN[i].m_to_s.vpu = tlNo;   
+  }
   /////
   for (;;)
     {
       tn_task_sleep(VPU_REFRESH_INTERVAL);
       //////
-      if(DataExchange()==tlEnd){
-        UpdateSatus();
-        VPU_LOGIC();
+      for (int i=0; i<VPU_COUNT; i++) {
+        Switch_VPU_Context(i);
+        if(DataExchange()==tlEnd){
+          UpdateSatus();
+          VPU_LOGIC();
+        }
       }
     }
   

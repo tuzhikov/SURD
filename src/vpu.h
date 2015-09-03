@@ -15,7 +15,8 @@
 #define MAX_BUTTON                  11
 #define MAX_LED                     11
 #define ADR_VPU                     1
-#define MAX_VPU_FAZE                8    
+#define MAX_VPU_FAZE                8
+#define VPU_COUNT                   1
 
 typedef enum _Type_ANS_{ansNoAnsw=0x00,ansOk=0x01,ansErr=0x02}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
