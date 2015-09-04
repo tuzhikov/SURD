@@ -100,6 +100,9 @@ typedef struct{
 } VPU_EXCHANGE;
 //////////////
 extern VPU_EXCHANGE  vpu_exch;
+extern int           cur_vpu; //номер текущего ВПУ 
+extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT]; 
+extern TVPU          dataVpuN[VPU_COUNT];
 
 /*external functions*/
 void vpu_init();   //эта функция вызываеться из модуля main.c в функции static void startup() TN_kernel

@@ -64,10 +64,10 @@ TVPU dataVpu;
 /////////
 VPU_EXCHANGE  vpu_exchN[VPU_COUNT]; 
 TVPU          dataVpuN[VPU_COUNT];
-int           cur_vpu=0;  
+int           cur_vpu=0; //номер текущего ВПУ 
 
 /*---------- Functions----------------------------------------------------*/
-// переключает конекст ВПУ-пультов
+// переключает контекст ВПУ-пультов
 void Switch_VPU_Context(int vpu_new)
 {
   // 1 сохраняем текущий контекст
@@ -79,6 +79,18 @@ void Switch_VPU_Context(int vpu_new)
   ////
   cur_vpu = vpu_new;
   
+}
+//------------------------------------------------------------------------------
+// Обновляет структуру m_t_s для ВСЕх ВПУ
+void Update_m_t_s(MASTER_SLAVE_VPU *mts)
+{
+    //текущий контекст
+    memcpy(&vpu_exch.m_to_s, mts, sizeof(vpu_exch.m_to_s));
+    //
+    for (int i=0; i<VPU_COUNT; i++) {
+      memcpy(&vpu_exchN[i].m_to_s, mts, sizeof(vpu_exch.m_to_s));
+    }
+    
 }
 //------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -529,6 +541,7 @@ void VPU_LOGIC()
     }
     ////////////////  
     // Рулим МЫ!!, отображаем состояния
+    if (bOn == dataVpu.rButton[ButManual].On)
     if (dataVpu.myRY)  {
          // запрашиваемое состояние
          if (dataVpu.bOnIndx!=0xFF) 
@@ -589,7 +602,9 @@ static void task_VPU_func(void* param)
           UpdateSatus();
           VPU_LOGIC();
         }
-      }
+      }//
+      // сохраним контекст последнего
+      Switch_VPU_Context(VPU_COUNT-1);
     }
   
 }
