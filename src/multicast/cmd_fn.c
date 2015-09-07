@@ -96,18 +96,38 @@ void cmd_debugee_func(struct cmd_raw* cmd_p, int argc, char** argv)
     //tn_reset();
     }
 }
-// запрос всех ДК в системе, проверяем целостность связи UDP------------------//
-void cmd_polling_func(struct cmd_raw* cmd_p, int argc, char** argv)
+/*----------------------------------------------------------------------------*/
+/* запрос одного ДК в системе с установкой сетевого статуса для slave---------*/
+/*----------------------------------------------------------------------------*/
+void cmd_setsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-if (argc != 0) // пришло не то
+if (argc<5) // пришло не то
     {
     udp_send_wrong_par(cmd_p);
     return;
     }
+// проверка сообщения
+unsigned long idp=0,pass=0,fSn=0,fSd=0;
+
+if(strcmp(argv[0],"IDP:")==0){
+  sscanf(argv[1],"%u",&idp);
+  }
+if(strcmp(argv[2],"PASSW:")==0){
+  sscanf(argv[3],"%u",&pass);
+  }
+if(strcmp(argv[4],"ST:")==0){
+  sscanf(argv[5],"%u",&fSn);
+  }
+if(strcmp(argv[6],"SD:")==0){
+  sscanf(argv[7],"%u",&fSd);
+  }
+checkSlaveMessageDk(idp,pass,fSn,fSd);
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
-// команда запроса статуса СУРД slave
+/*----------------------------------------------------------------------------*/
+/* команда запроса статуса СУРД ----------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 void cmd_getsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
 if (argc != 0) // пришло не то
@@ -118,13 +138,15 @@ if (argc != 0) // пришло не то
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
-// пришел ответ от slave SURD, только запись отправки нет
+/*----------------------------------------------------------------------------*/
+/* пришел ответ от slave SURD, только запись отправки нет, работает мастер */
+/*----------------------------------------------------------------------------*/
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
 if(argc<4){ // пришло не то
     return;
     }
-unsigned long idp=0,pass=0,id=0,dn=0;
+unsigned long idp=0,pass=0,id=0,dn=0,vpuOn,vpuPhase;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -139,18 +161,18 @@ if(strcmp(argv[4],"PASSW:")==0){
 if(strcmp(argv[6],"DN:")==0){
   sscanf(argv[7],"%u",&dn);
   }
-/*if(strcmp(argv[8],"VER:")==0){
-  sscanf(argv[9],"%u",&ver);
+if(strcmp(argv[8],"VPU:")==0){
+  if(strcmp(argv[9],"NO")==0) vpuOn = 0; // ВПУ  РУ ON
+                         else vpuOn = 1; // ВПУ  РУ OFF
   }
-if(strcmp(argv[8],"SURD:")==0){
-  if(strcmp(argv[9],"NO")==0){
-    StatusSurd = false;
-    }else{
-    StatusSurd = true;}
-  }*/
-checkMessageDk((BYTE)id,pass,idp,dn); // установим статусы
+if(strcmp(argv[10],"PHASE:")==0){
+  sscanf(argv[11],"%u",&vpuPhase);
+  }
+checkMasterMessageDk((BYTE)id,pass,idp,dn,vpuOn,vpuPhase);// установим статусы
 }
-// пришла информация о фазах, работаем с ВПУ----------------------------------//
+/*----------------------------------------------------------------------------*/
+/* пришла информация о фазах, работаем с ВПУ команда slave */
+/*----------------------------------------------------------------------------*/
 void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
 if(argc<4){ // пришло не то
@@ -174,7 +196,7 @@ checkPhaseDk((BYTE)id,pass,idp,phase);
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
-// запрос интернет параметров-------------------------------------------------//
+/* запрос интернет параметров-------------------------------------------------*/
 void cmd_ifconfig_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
     if (argc != 0)
@@ -1554,51 +1576,33 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     char buf[200];
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
     const long idp = retCRC32();
-    const TVPU *vpu = retDateVPU();
-    char tmpbuff[20];
-    retTextStatusVPU(tmpbuff,vpu->satus);
-    const bool StatusNet = retNetworkOK();
+    const BYTE currID = prg->surd.ID_DK_CUR;
+    const DWORD Passw = prg->surd.Pass;
     const DWORD StatusDK  = retStatusSURD();
+    const bool StatusNet = retNetworkOK();
+    char tmpbuff1[20],tmpbuff2[5];
+    retTextStatusVPU(tmpbuff1,retStateVPU());
+    retOnVPU()? strcpy(tmpbuff2,"ON"):strcpy(tmpbuff2,"OFF");
+
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
         "ID:    %u\r\n"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
         "DN:    %u\r\n"
+        "VPU:   %s\r\n"
+        "PHASE: %s\r\n"
         "VER:   %u\r\n"
-        "SURD:  %s\r\n"
-        "VPU:   %s\r\n",
-        prg->surd.ID_DK_CUR,
+        "SURD:  %s\r\n",
+        currID,
         idp,
-        prg->surd.Pass,
+        Passw,
         StatusDK,
+        tmpbuff1,
+        tmpbuff2,
         VER_MAJOR,
-        StatusNet? "OK":" NO",
-        tmpbuff);
-/*
-char BuffTemp[70];
-strcpy(BuffTemp,"BUTTON:");
-// кнопки нажаты
-for(int i=0;i<MAX_BUTTON;i++)
-  {
-  strcat(BuffTemp," ");
-  if(vpu->rButton[i].On==bOn)strcat(BuffTemp,"ON");
-                        else strcat(BuffTemp,"OFF");
-  }
-strcat(BuffTemp,"\r\n");
-strcat(buf,BuffTemp);
-strcpy(BuffTemp,"LED:");
-// led status
-for(int i=0;i<MAX_BUTTON;i++)
-  {
-  strcat(BuffTemp," ");
-  if(vpu->led[i].On==ledOff)strcat(BuffTemp,"OFF");
-    else if(vpu->led[i].On==ledBlink1)strcat(BuffTemp,"BL1");
-      else if(vpu->led[i].On==ledBlink2)strcat(BuffTemp,"BL2");
-        else if(vpu->led[i].On==ledOn)strcat(BuffTemp,"ON");
-  }
-strcat(BuffTemp,"\r\n");
-strcat(buf,BuffTemp);*/
+        StatusNet? "OK":" NO");
+
 return udp_sendstr(cmd_p, buf); // отправка буффера
 }
 /*----------------------------------------------------------------------------*/

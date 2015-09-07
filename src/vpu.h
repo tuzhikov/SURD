@@ -44,8 +44,8 @@ typedef struct _VPU_{
   TVPU_LED      rLed[MAX_LED];
   TVPU_LED      led[MAX_LED];
   int           bOnIndx;  //индекс нажатой кнопки
-  BOOL          RY; //Флаг ручного управления
-  BOOL          myRY; //ручное управление - мы рулим
+  BOOL          RY;       //Флаг ручного управления
+  BOOL          myRY;     //ручное управление - мы рулим
 }TVPU;
 #pragma pack(pop)
 extern TVPU dataVpu;
@@ -87,12 +87,12 @@ typedef struct _VPU_COMMAND_{
 typedef struct{
   // Статус сети //  0- OFF, 1- OK
   BYTE                  statusNEt;
-  ////  DK number   
-  BYTE                  idDk;     
-  // ВПУ включено или запрос РУ. 0- OFF, 1 - ON 
-  BYTE                  vpuOn;  
+  ////  DK number
+  BYTE                  idDk;
+  // ВПУ включено или запрос РУ. 0- OFF, 1 - ON
+  BYTE                  vpuOn;
   // Сотсояние ВПУ
-  Type_STATUS_VPU       vpu; 
+  Type_STATUS_VPU       vpu;
 } MASTER_SLAVE_VPU;
 typedef struct{
   MASTER_SLAVE_VPU   m_to_s; //Управление от мастера для slave
@@ -100,16 +100,18 @@ typedef struct{
 } VPU_EXCHANGE;
 //////////////
 extern VPU_EXCHANGE  vpu_exch;
-extern int           cur_vpu; //номер текущего ВПУ 
-extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT]; 
+extern int           cur_vpu; //номер текущего ВПУ
+extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
 extern TVPU          dataVpuN[VPU_COUNT];
-
 /*external functions*/
 void vpu_init();   //эта функция вызываеться из модуля main.c в функции static void startup() TN_kernel
 void uart1_int_handler(); //эта функция вызываеться из модуля tn_user.c в функции void hw_uart1_int_handler()обработчит прерываний от uart
-const TVPU *retDateVPU(void);
-// ВПУ запросы
-BYTE retRequestsVPU(void);
+//const TVPU *retDateVPU(void);
+void updateCurrentDatePhase(const BYTE stNet,const BYTE idDk,const BYTE vpuOn,
+                            const BYTE vpuST); // состояние VPU
+BYTE retRequestsVPU(void);// ВПУ запросы
+Type_STATUS_VPU retStateVPU(void);
+BYTE retOnVPU(void);
 // тектосвое состояние ВПУ
 void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status);
 

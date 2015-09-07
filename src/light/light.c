@@ -400,6 +400,7 @@ for (int ic=0; ic<8; ic++)
   sta  = (I_STAT[ic]>0)? true : false;
   sta1 = (RED_PORT & (1<<ic))>0 ? true : false;
   sta2 = (RED_PORT_CONF & (1<<ic))>0 ? true : false;
+
   if (sta2)
     if (sta ^ sta1){
       //различаются AHTUNG
@@ -408,7 +409,7 @@ for (int ic=0; ic<8; ic++)
       if(PROJ[CUR_DK].jornal.alarm){
         if (sta1){
           snprintf(buf, 60 , "КР выход %u без нагрузки",(ic+1));
-          chan_faults |= FT_RED_CONFL;
+          chan_faults |= FT_RED_CHAN;//FT_RED_CONFL;
           }
         Event_Push_Str(buf);
         }
@@ -462,34 +463,31 @@ static void Next_Try(bool b)
      if (reboot_tryes<PROJ[CUR_DK].guard.restarts)
      {
         reboot_tryes++;
-        if (chan_faults!=FT_RED_CONFL)
-        {
-          POWER_SET(false); // off rele
-           SIGNAL_OFF();
-           Save_LET();
-           //
-           for (int i_dk=0; i_dk<dk_num; i_dk++)
-           {
+        if (chan_faults!=FT_RED_CONFL){
+            POWER_SET(false); // off rele
+            SIGNAL_OFF();
+            Save_LET();
+            //
+            for (int i_dk=0; i_dk<dk_num; i_dk++)
+              {
               CUR_DK = i_dk;
               Init_DK();
               DK_ALARM_OC();
-           }
+              }
            //
            DK_MAIN();
            light_machine.work=false;
            //
-        }
-        else
-        {
+          }else{
            Save_LET();
            for (int i_dk=0; i_dk<dk_num; i_dk++)
-           {
+              {
               CUR_DK = i_dk;
-              //Init_DK();
-              //DK_ALARM_YF();
-           }
+              Init_DK();
+              DK_ALARM_OC();//DK_ALARM_YF();
+              }
            DK_MAIN();
-        }
+          }
         Next_Try_wait = true;
         chan_faults=FT_NO;
         tn_task_sleep(100);
@@ -524,16 +522,16 @@ static void Check_LET(void)
             reboot_tryes=0;
 
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
 /*loop cycle*/
+/*----------------------------------------------------------------------------*/
 static void task_light_func(void* param)
 {
-    //unsigned short light;
-    bool  b_ch;//, b_err;
+    bool  b_ch;
     unsigned int fpattern;
-    //int i_sec;
     SYSTEMTIME  cur_time;
     DS1390_TIME time;
+
     CUR_DK=0;
     SIGNAL_OFF();
     POWER_SET(true);
@@ -641,127 +639,3 @@ unsigned long retCRC32()
 return crc_idp.crc;
 }
 /*----------------------------------------------------------------------------*/
-/*static void External_Buttons(unsigned char button)
-{
-
-
-    static unsigned char yf = FALSE;
-    static unsigned char fazy = 0;
-
-
-    if (!button)
-    {
-        if (!yf)
-            DK_Service_YF();
-        else
-        {
-            DK_Service_OS();
-            DK_Service_undo();
-        }
-        yf = !yf;
-    }else
-    {
-        if (!yf)
-        {
-            if (fazy > 1)
-            {
-                DK_Service_undo();
-                fazy = 0;
-            }else
-                DK_Service_faza(fazy++);
-        }
-    }
-} */
-//------------------------------------------------------------------------------
-/*int Seconds_Between_DS(DS1390_TIME *ds_tt, DS1390_TIME *ds_tl)
-{
-        //TDateTime tim, lim;
-        SYSTEMTIME tt,tl;
-        ///
-        tt.tm_hour = ds_tt->hour;
-        tt.tm_mday = ds_tt->date;
-        tt.tm_min = ds_tt->min;
-        tt.tm_sec = ds_tt->sec;
-        tt.tm_mon = ds_tt->month;
-        tt.tm_year = ds_tt->year;
-        //
-        tl.tm_hour = ds_tl->hour;
-        tl.tm_mday = ds_tl->date;
-        tl.tm_min = ds_tl->min;
-        tl.tm_sec = ds_tl->sec;
-        tl.tm_mon = ds_tl->month;
-        tl.tm_year = ds_tl->year;
-//
-time_t tim, lim;
-//
-tim = mktime(&tt);
-lim = mktime(&tl);
-//
-return (lim-tim);
-} */
-//------------------------------------------------------------------------------
-/*static void Event_Channel_Fault(void)
-{
-   char buf[60];
-   ////
-   if (!PROJ[CUR_DK].jornal.alarm)
-     return;
-   /////
-   if (U_STAT_PW==false)
-   {
-     strcpy(buf,"Нет сетевого напряжения.");
-     Event_Push_Str(buf);
-     return;
-   }
-   ///
-    strcpy(buf,"Авария. ");
-    if (RED_PORT_ERR)
-    {
-      strcat(buf,"Красный=");
-       Byte_to_Bin(RED_PORT_ERR, buf);
-    }
-    //
-    if (GREEN_PORT_ERR)
-    {
-      strcat(buf,"Зеленый=");
-       Byte_to_Bin(GREEN_PORT_ERR, buf);
-    }
-    //
-    Event_Push_Str(buf);
-
-} */
-//------------------------------------------------------------------------------
-/*void Test_Mode()
-{
-  //set 1 light
-            for (int ig=1; ig<9; ig++)
-              for (int ic=0; ic<3; ic++)
-              {
-                //Set_LED(ig,ic,true);
-                SET_OUTPUTS();
-                 tn_task_sleep(500);
-                //
-                //Set_LED(ig,ic,false);
-                SET_OUTPUTS();
-                tn_task_sleep(500);
-
-
-              }
-}*/
-//------------------------------------------------------------------------------
-/*void SetLight (unsigned short light, BOOL flash)
-{
-light_machine.light = light;
-}*/
-//------------------------------------------------------------------------------
-/*unsigned short GetLight (void)
-{
-return light_machine.light;
-}*/
-//------------------------------------------------------------------------------
-/*void GetNaprText (char *buf)
-{
-snprintf(buf, 128, "D1: %s \nD2: %s\n",
-    text_light[DK[CUR_DK].control.napr[0]],
-    text_light[DK[CUR_DK].control.napr[1]]);
-}*/

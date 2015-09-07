@@ -10,16 +10,16 @@
 #include "../lwip/lwiplib.h"
 #include "../types_define.h"
 
-#define CMD_DQUE_SZ     32   // max cmd's fifo size
+#define CMD_DQUE_SZ     32  // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     9   // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     12  // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
-
+#define MAX_VIR_VPU     32
 //step automate
 //typedef enum {NUL,ONE,TWO,THREE,FOR,FIVE,END}STEP_NET;
 //type command
-typedef enum {ONE_DK,SET_PHASE,GET_STATUS,END_CMD}TYPE_CMD;
+typedef enum {ONE_DK,SET_PHASE,SET_STATUS,GET_STATUS,END_CMD}TYPE_CMD;
 //
 struct  cmd_raw
 {
@@ -37,6 +37,16 @@ struct cmd_nfo
     char*           cmd_help;
     void            (*cmd_func)(struct cmd_raw* cmd_p, int argc, char** argv);
 };
+/////////////////////////////////
+typedef struct _NET_VPU_{
+  BYTE id;
+  BYTE vpuOn;
+  BYTE phase;
+}NET_VPU;
+typedef struct _VIR_VPU{
+ NET_VPU vpu[MAX_VIR_VPU];
+ BYTE index;
+}VIR_VPU;
 // external value
 extern struct cmd_nfo   g_cmd_nfo[CMD_NFO_SZ];
 extern BOOL ETH_RECV_FLAG;
@@ -47,6 +57,7 @@ err_t       udp_sendbuf(struct cmd_raw* cmd_p, char const* buf, int len);
 void        get_cmd_ch_ip(struct ip_addr* ipaddr);
 /*----------------------------------------------------------------------------*/
 DWORD retStatusSURD(void);
+void setStatusSURD(DWORD st);
 void setStatusDk(const BYTE nDk);
 BOOL getStatusDk(const BYTE nDk);
 void clearStatusOneDk(const BYTE nDk);
@@ -55,7 +66,10 @@ BOOL retNetworkOK(void);
 void flagClaerNetwork(void);
 void flagSetNetwork(const BOOL flag);
 void clearStatusDk(void);
-BOOL checkMessageDk(const BYTE id,const DWORD pass,const DWORD idp,const DWORD st);
+BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,
+                    const DWORD idp,const DWORD st,
+                    const BYTE vpuOn,const BYTE vpuPhase);
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const BOOL stnet,const BOOL sdnet);
 BOOL checkPhaseDk(const BYTE id,const DWORD pass,const DWORD idp,const DWORD phase);
 
 
