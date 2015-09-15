@@ -83,11 +83,11 @@ typedef struct __STATE
                                // дл€ фаз это длительность основного такта
   //
   DK_STATE         source;     //источник состо€ни€
-  //DK_STATE         dk_state;   // глобальное состо€ние ƒ  при этом состо€нии  ???
+  //DK_STATE         dk_state; // глобальное состо€ние ƒ  при этом состо€нии  ???
   //
   //struct tm        start;
-  //SYSTEMTIME       start;     //врем€ начала состо€ни€
-  //SYSTEMTIME       end;       //врем€ окончани€
+  //SYSTEMTIME       start;    //врем€ начала состо€ни€
+  //SYSTEMTIME       end;      //врем€ окончани€
   //
 } STATE;
 //
@@ -122,7 +122,7 @@ typedef struct __CONTROLLER
         //
         DWORD           Tproga;    // длина текущей программы(цикла)
         DWORD           BeginTimeWorks; // врем€ начала текущего тайм-слота
-        WORD            Tosn;    // длина основного такта
+        DWORD           Tosn;    // длина основного такта
         WORD            Tprom;   // длина пром тактов
         //
         STATES_LIGHT    napr[MaxDirects]; //текущие состо€ни€ направлений
@@ -130,10 +130,11 @@ typedef struct __CONTROLLER
         // таймера
         BYTE            prom_time[MaxDirects]; //таймеры
         //
-        WORD            len; //таймер текущего состо€ни€
+        DWORD           len; //таймер текущего состо€ни€
         //
         SYSTEMTIME      start; //врем€ начала состо€ни€
         SYSTEMTIME      end;   //врем€ окончани€ текущего состо€ни€
+        SYSTEMTIME      endPhase; //врем€ окончани€ текущего состо€ни€ фазы
         //
         int             prom_timer; //таймер
         //
@@ -207,10 +208,12 @@ void Init_DK(void);
 unsigned short DK_MAIN(void);
 unsigned short Update_STATES(const bool flash,const bool fudzon);
 int Seconds_Between(SYSTEMTIME *tt, SYSTEMTIME *tl);
-void TIME_PLUS(SYSTEMTIME *tt, SYSTEMTIME *tplus, int sec_plus);
+void TIME_PLUS(SYSTEMTIME *tt, SYSTEMTIME *tplus, DWORD sec_plus);
 ////////////////////////////////////////////////////////////////////////////////////
 // ¬ыделены функции
 ////////////////////////////////////////////////////////////////////////////////////
+void DK_ALARM_OC(void);
+void DK_ALARM_undo(void);
 void DK_Service_OS(void);
 void DK_Service_YF(void);
 void DK_Service_KK(void);

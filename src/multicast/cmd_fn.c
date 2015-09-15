@@ -97,7 +97,7 @@ void cmd_debugee_func(struct cmd_raw* cmd_p, int argc, char** argv)
     }
 }
 /*----------------------------------------------------------------------------*/
-/* запрос одного ДК в системе с установкой сетевого статуса для slave---------*/
+/* запрос master одного ДК в системе с установкой сетевого статуса*/
 /*----------------------------------------------------------------------------*/
 void cmd_setsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
@@ -126,7 +126,7 @@ checkSlaveMessageDk(idp,pass,fSn,fSd);
 udp_send_surd(cmd_p);
 }
 /*----------------------------------------------------------------------------*/
-/* команда запроса статуса СУРД ----------------------------------------------*/
+/* команда запроса статуса СУРД*/
 /*----------------------------------------------------------------------------*/
 void cmd_getsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
@@ -139,14 +139,14 @@ if (argc != 0) // пришло не то
 udp_send_surd(cmd_p);
 }
 /*----------------------------------------------------------------------------*/
-/* пришел ответ от slave SURD, только запись отправки нет, работает мастер */
+/*пришел ответ от slave to master, только запись отправки нет, работает мастер*/
 /*----------------------------------------------------------------------------*/
 void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
 if(argc<4){ // пришло не то
     return;
     }
-unsigned long idp=0,pass=0,id=0,dn=0,vpuOn,vpuPhase;
+unsigned long idp=0,pass=0,id=0,dn=0,vpuOn=0,vpuPhase=0;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -162,8 +162,8 @@ if(strcmp(argv[6],"DN:")==0){
   sscanf(argv[7],"%u",&dn);
   }
 if(strcmp(argv[8],"VPU:")==0){
-  if(strcmp(argv[9],"NO")==0) vpuOn = 0; // ВПУ  РУ ON
-                         else vpuOn = 1; // ВПУ  РУ OFF
+  if(strcmp(argv[9],"ON")==0) vpuOn = true;  // ВПУ  РУ ON
+                         else vpuOn = false; // ВПУ  РУ OFF
   }
 if(strcmp(argv[10],"PHASE:")==0){
   sscanf(argv[11],"%u",&vpuPhase);
@@ -263,6 +263,8 @@ void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
   if (strcmp(argv[0], "OS") == 0) //
     {
     DK_Service_OS();
+    for (int i_dk=0; i_dk<DK_N; i_dk++)// установили флаги ДК ОС
+           DK[i_dk].OSSOFT = true;
     udp_send_success(cmd_p);
     return;
     }
@@ -1513,7 +1515,9 @@ if(DK[curr_dk].CUR.source==VPU)     strcat(buf,"VPU");
 if(DK[curr_dk].CUR.source==TVP)     strcat(buf,"TVP");
 if(DK[curr_dk].CUR.source==PLAN)    strcat(buf,"PLAN");
 // add status SURD
-strcat(buf," SURD=");
+strcat(buf," SURDNET=");
+if(retNetworkOK())strcat(buf,"OK");
+             else strcat(buf,"NO");
 // send UDP
 return udp_sendstr(cmd_p, buf);
 }
@@ -1579,10 +1583,9 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const BYTE currID = prg->surd.ID_DK_CUR;
     const DWORD Passw = prg->surd.Pass;
     const DWORD StatusDK  = retStatusSURD();
-    const bool StatusNet = retNetworkOK();
-    char tmpbuff1[20],tmpbuff2[5];
-    retTextStatusVPU(tmpbuff1,retStateVPU());
-    retOnVPU()? strcpy(tmpbuff2,"ON"):strcpy(tmpbuff2,"OFF");
+    const BOOL StatusNet = retNetworkOK();
+    const WORD nPhase = retStateVPU();
+    const BOOL onVPU = retOnVPU();
 
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
@@ -1591,15 +1594,15 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "PASSW: %u\r\n"
         "DN:    %u\r\n"
         "VPU:   %s\r\n"
-        "PHASE: %s\r\n"
+        "PHASE: %u\r\n"
         "VER:   %u\r\n"
         "SURD:  %s\r\n",
         currID,
         idp,
         Passw,
         StatusDK,
-        tmpbuff1,
-        tmpbuff2,
+        onVPU?"ON":"OFF",
+        nPhase,
         VER_MAJOR,
         StatusNet? "OK":" NO");
 

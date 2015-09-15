@@ -28,7 +28,7 @@ void Build_Takts(int c_prog, int n_prog, int  cur_faz,int  next_faz);
 extern int   cur_prog[DK_N];                 //текущая программа
 extern prom_takts_faz_type prom_takts[DK_N]; // пром. такты одной фазы
 extern osn_takts_faz_type  osn_takt[DK_N];   // основные такты  фазы
-extern int Tprom_len[DK_N];
-extern int osn_takt_time[DK_N];              //длина основного такта
+extern DWORD Tprom_len[DK_N];                // длина пром. такта
+extern DWORD osn_takt_time[DK_N];            //длина основного такта
 extern TPROGRAM PROG_NEXT;                   //структура следующей программы
 #endif

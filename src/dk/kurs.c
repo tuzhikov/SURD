@@ -379,7 +379,7 @@ TONEDIRECT  *diR;
 // проверяем направления
 for (int i_napr=0; i_napr<maxAllDir; i_napr++)
   {
-  diR =  &DK[CUR_DK].PROJ->Directs.OneDirect[i_napr]; // выбираем направления из проекта
+  diR =  (TONEDIRECT*)&DK[CUR_DK].PROJ->Directs.OneDirect[i_napr]; // выбираем направления из проекта
   // тип направления ССГ
   if(diR->Type==DIR_CCG){
     setDirectCCG(i_napr,diR,blink); // set output

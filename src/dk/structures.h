@@ -226,12 +226,13 @@ typedef struct _TGUARD{
         BYTE  green_yellow;
         BYTE  green_min;
         WORD  faza_max;
-        BYTE  green_fill;        //флаг заполнени€ пром. тактов 0-красным, 1 - зеленым
+        BYTE  green_fill;        // флаг заполнени€ пром. тактов 0-красным, 1 - зеленым
         BYTE  type_cycle;        // тип пром. такта дл€ отображени€.
-        BYTE  restart_interval;  //  интервал перезапуска
+        BYTE  restart_interval;  // интервал перезапуска
         BYTE  restarts;          // кол-во попыток перезапуска
         BYTE  time_clear;        // врем€ очистки аварий
-        BYTE  kk_len;            //   длительнсоть
+        BYTE  kk_len;            //    длительнсоть
+        BYTE  gpsON;             // включение проверки GPS
   }TGUARD;
 /*----------------------------------------------------------------------------*/
 typedef struct _TJORNAL{

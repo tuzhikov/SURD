@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32  // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     12  // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     15  // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 #define MAX_VIR_VPU     32

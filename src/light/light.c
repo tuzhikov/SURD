@@ -418,22 +418,6 @@ for (int ic=0; ic<8; ic++)
   }
 return (ret);
 }
-//------------------------------------------------------------------------------
-static void DK_ALARM_OC(void)
-{
-        DK[CUR_DK].REQ.req[ALARM].spec_prog = SPEC_PROG_OC;
-        DK[CUR_DK].REQ.req[ALARM].work = SPEC_PROG;
-        DK[CUR_DK].REQ.req[ALARM].source = ALARM;
-        DK[CUR_DK].REQ.req[ALARM].presence = true;
-}
-//------------------------------------------------------------------------------
-/*static void DK_ALARM_YF(void)
-{
-        DK[CUR_DK].REQ.req[ALARM].spec_prog = SPEC_PROG_YF;
-        DK[CUR_DK].REQ.req[ALARM].work = SPEC_PROG;
-        DK[CUR_DK].REQ.req[ALARM].source = ALARM;
-        DK[CUR_DK].REQ.req[ALARM].presence = true;
-}*/
 /*----------------------------------------------------------------------------*/
 // остановка ДК авария
 void DK_HALT(void)
@@ -444,6 +428,7 @@ SIGNAL_OFF();
 DK_ALARM_OC();
 DK_MAIN();
 }
+/*----------------------------------------------------------------------------*/
 // запуск ДК после аварии
 void DK_RESTART(void)
 {
@@ -529,6 +514,8 @@ static void task_light_func(void* param)
 {
     bool  b_ch;
     unsigned int fpattern;
+    WORD TimeErrorGPS;
+    BYTE fStat=false;
     SYSTEMTIME  cur_time;
     DS1390_TIME time;
 
@@ -594,6 +581,38 @@ for (;;)
     if (!light_machine.work){
       tn_task_sleep(500);
       continue;
+      }
+    // ждем данных от GPS
+    if(DK[0].PROJ->guard.gpsON){ // работаем только с GPS DK_Service_undo();
+      GPS_INFO gps;
+      Get_gps_info(&gps);
+      switch(fStat)
+        {
+        case Null: // первый старт
+          if(gps.fix_valid==false){// выходим с аварией
+            tn_task_sleep(2000);
+            DK_ALARM_OC();
+            break;}
+          DK_ALARM_undo();// включаем режим
+          TimeErrorGPS = 0;
+          fStat=One;
+          break;
+        case One:// нет данных GPS
+          if(!gps.fix_valid){TimeErrorGPS = 0;fStat=Two;}
+          break;
+        case Two:// задерка на выключение 5 мин
+          if(++TimeErrorGPS>300){DK_ALARM_OC();fStat=Three;}
+          if(gps.fix_valid)fStat=One;
+          break;
+        case Three://ждем GPS данные
+          if(gps.fix_valid){TimeErrorGPS =0;fStat=Five;}
+          break;
+        case Five:// задерка на включение 2 мин
+          if(++TimeErrorGPS>120){DK_ALARM_undo();fStat=One;}
+          if(!gps.fix_valid)fStat=Three;
+          break;
+        default:fStat=One;break;
+        }
       }
     //machine stat
     switch (LIGHT_STA)

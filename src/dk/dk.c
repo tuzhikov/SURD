@@ -20,6 +20,8 @@
   #include "kurs.h"
 #endif
 
+
+
 __DK   DK[DK_N];
 TPROJECT     PROJ[DK_N];
 TPROGRAM     PROG_PLAN;
@@ -145,9 +147,20 @@ static BOOL TIME_END(void)
 {
 return (!DK[CUR_DK].control.len);
 }
+// текущее состояние для фазы
+static BOOL TIME_PHASE_END(void)
+{
+const SYSTEMTIME *timeEnd = &DK[CUR_DK].control.endPhase;
+const int timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;
+const int timeStop    = timeEnd->tm_hour*3600 + timeEnd->tm_min*60 + timeEnd->tm_sec;
+
+if(timeCurrent==timeStop)
+  DK[CUR_DK].control.len = 0;
+return(!DK[CUR_DK].control.len);
+}
 //------------------------------------------------------------------------------
 // плюсует к времени секунды
-void TIME_PLUS(SYSTEMTIME *const tt,SYSTEMTIME *const tplus,const int sec_plus)
+void TIME_PLUS(SYSTEMTIME *const tt,SYSTEMTIME *const tplus,const DWORD sec_plus)
 {
 time_t tim;
 tim = mktime(tt);
@@ -279,7 +292,18 @@ if(!Is_Faz_Vis(prog,WorkPhase)){
   }
 return WorkPhase;
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
+int getCurrentTimeBeginPhase(void)
+{
+const int cur_week = WeekOfTheYear(&CT);
+const int week_plan = DK[CUR_DK].PROJ->Year.YearCalendar[cur_week-1];
+const int cur_day_of_week = DayOfWeek(&CT);
+const int day_plan = DK[CUR_DK].PROJ->WeeksPlans[week_plan].Calendar[cur_day_of_week];
+const int nPhase =  getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
+
+return DK[CUR_DK].PROJ->DaysPlans[day_plan].CalendTime[nPhase].BeginTimeWorks;
+}
+/*----------------------------------------------------------------------------*/
 // проверяет состояние
 // prog, faza-  зависит от контекста work
 bool TEST_STA(const STATE *sta, WORK_STATE  w_sta, BYTE prog, BYTE faza)
@@ -426,7 +450,7 @@ if (sta->spec_prog) sta->work = SPEC_PROG;
 // Работа по календарному плану и программам
 static void GO_PLAN(void)
 {
-   BYTE  cur_prog_faza;       // номер фазы в программе
+   //BYTE  cur_prog_faza;       // номер фазы в программе
 
    switch (DK[CUR_DK].PLAN.STA)
    {
@@ -439,9 +463,9 @@ static void GO_PLAN(void)
                 //
                 #ifdef KURS_DK
                     Load_Plan_Prog(DK[CUR_DK].PLAN.cur.prog);
-                    cur_prog_faza =  PROG_PLAN.AmountFasa-1;
+                    //cur_prog_faza =  PROG_PLAN.AmountFasa-1;
                 #else
-                    cur_prog_faza =  DK[CUR_DK].PROJ->Program[DK[CUR_DK].PLAN.cur.prog].AmountFasa-1;
+                    //cur_prog_faza =  DK[CUR_DK].PROJ->Program[DK[CUR_DK].PLAN.cur.prog].AmountFasa-1;
                 #endif
                  // ищем фазу видимую по календарному плану
                  DK[CUR_DK].PLAN.cur.prog_faza =
@@ -450,7 +474,7 @@ static void GO_PLAN(void)
                 //
                 Copy_STATES(&DK[CUR_DK].NEXT, &DK[CUR_DK].PLAN.cur);
                 //
-                Calc_Tc(DK[CUR_DK].PLAN.cur.prog);
+                Calc_Tc(DK[CUR_DK].PLAN.cur.prog);  // расче времени всего цикла
                 DK[CUR_DK].NEXT.presence=true;
                 DK[CUR_DK].PLAN.STA = STA_GET_REQ;
                 break;
@@ -1184,12 +1208,21 @@ static int CUR_NEXT(void)
                         // определяем время окончания
                         if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP))
                         {
-                              //TIME_PLUS(&CT, &DK[CUR_DK].control.end,
-                              //  osn_takt_time);
-                             if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))
+                          // время начала текущей фазы
+                           const time_t timeStartPh = getCurrentTimeBeginPhase();    // время начала текущей фазы
+                           const time_t timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;// время когда в эту фазу попали
+                           DWORD TimeDelta;
+                           if(timeStartPh<=timeCurrent)TimeDelta = timeCurrent - timeStartPh;
+                                                  else TimeDelta = timeStartPh - timeCurrent;
+                           if(TimeDelta<=osn_takt_time[CUR_DK])
+                                DK[CUR_DK].control.len = osn_takt_time[CUR_DK]-TimeDelta;
+                                else
+                                DK[CUR_DK].control.len = osn_takt_time[CUR_DK];
+                          // YF
+                          if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))
                               osn_takt_time[CUR_DK]=1;
-                              //
-                              DK[CUR_DK].control.len = osn_takt_time[CUR_DK];
+                          // время окончания
+                          TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
                         }
                         else
                         {
@@ -1222,7 +1255,7 @@ static void SET_NEXT_STATE(void)
         //
         if (DK[CUR_DK].CUR.source > DK[CUR_DK].NEXT.source)
         {
-           D_W("MOre prioritet\n");
+           D_W("More prioritet\n");
            D_W("short time\n");
            //
            if (DK[CUR_DK].CUR.work == SPEC_PROG)
@@ -1237,7 +1270,7 @@ static void SET_NEXT_STATE(void)
                {
                   //int i = ;osn_takt_time
                   if ((osn_takt_time[CUR_DK] - DK[CUR_DK].control.len) >
-                      DK[CUR_DK].PROJ->Program.fazas[DK[CUR_DK].CUR.prog_faza].Tmin)
+                      DK[CUR_DK].PROJ->Program.fazas[DK[CUR_DK].CUR.prog_faza].Tmin)// защитный интервал по Тмин зел
                     DK[CUR_DK].control.len = 0;//DK[CUR_DK].PROJ->Program.fazas[DK[CUR_DK].CUR.prog_faza].Tmin;
                   // повторение фаз после ТВП
                   if (DK[CUR_DK].CUR.source==PLAN)
@@ -1272,14 +1305,12 @@ static void Check_Low_Level_Spec_Prog(void)
          CUR_NEXT();
      }
 }
-//-----------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
 // переключатель состояний ДК. автомат переключения силовых выходов
 static bool CONTROL(void)
 {
-  int prom_indx;
-
   // Тикаем считаем время в сек.
-  if (DK[CUR_DK].control.len)
+  if(DK[CUR_DK].control.len)
       DK[CUR_DK].control.len--;
   // проверка неотложных запросов
   Check_Low_Level_Spec_Prog();
@@ -1321,7 +1352,7 @@ static bool CONTROL(void)
                    {
                         SET_NEXT_STATE();
                    }
-                   if (TIME_END())//закончилось время
+                   if (TIME_PHASE_END())//закончилось время
                    {
                       //закончилось время
                       //фиксируем следующее состояние
@@ -1340,12 +1371,12 @@ static bool CONTROL(void)
                       memcpy(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, sizeof(SYSTEMTIME));
                       // Окончание пром. тактов
                       TIME_PLUS(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, Tprom_len[CUR_DK]);
-                      //  чистим индексы
+                      // чистим индексы
                       for (int i=0;i < DK[CUR_DK].PROJ->Directs.countDirectCCG; i++)
-                      {
+                        {
                         DK[CUR_DK].control.prom_indx[i]=0;
                         DK[CUR_DK].control.prom_time[i]=0;
-                      }
+                        }
                       //
                       SET_PROM_STATE_LEDS();
                       DK[CUR_DK].control.STA = STA_PROM_TAKTS;
@@ -1362,17 +1393,17 @@ static bool CONTROL(void)
                        break;
                      }
                      //+1s
-                     for (int i_n=0; i_n < DK[CUR_DK].PROJ->Directs.countDirectCCG; i_n++)
+                     for(int i_n=0; i_n < DK[CUR_DK].PROJ->Directs.countDirectCCG; i_n++)
                      {
-                       DK[CUR_DK].control.prom_time[i_n]++;
-                       //
-                       prom_indx = DK[CUR_DK].control.prom_indx[i_n];
-                       //
-                       if ( DK[CUR_DK].control.prom_time[i_n]>=
-                            prom_takts[CUR_DK][i_n][prom_indx].time)
-                            {
-                               DK[CUR_DK].control.prom_indx[i_n]++;
-                               DK[CUR_DK].control.prom_time[i_n]=0;
+
+                       DK[CUR_DK].control.prom_time[i_n]++; // инкремент ++ 1 с
+                       // номер пром такта
+                       const int prom_indx = DK[CUR_DK].control.prom_indx[i_n];
+                       // получим время в мин. пром тактов преобразуем в секунды
+                       const int TimeProm = prom_takts[CUR_DK][i_n][prom_indx].time*60;
+                       if ( DK[CUR_DK].control.prom_time[i_n]>=TimeProm){ // проверить при выходе
+                            DK[CUR_DK].control.prom_indx[i_n]++; //следующий пром. такт
+                            DK[CUR_DK].control.prom_time[i_n]=0; // нулим таймер
                             }
                      }
                      //
@@ -1434,15 +1465,23 @@ return (fire_light);
                           Выделены функции
 *******************************************************************************/
 /*----------------------------------------------------------------------------*/
+void DK_ALARM_OC(void)
+{
+    DK[CUR_DK].REQ.req[ALARM].spec_prog = SPEC_PROG_OC;
+    DK[CUR_DK].REQ.req[ALARM].work = SPEC_PROG;
+    DK[CUR_DK].REQ.req[ALARM].source = ALARM;
+    DK[CUR_DK].REQ.req[ALARM].presence = true;
+}
+void DK_ALARM_undo(void)
+{
+Clear_STATE(&(DK[CUR_DK].REQ.req[ALARM]));
+}
 void DK_Service_OS(void)
 {
     DK[CUR_DK].REQ.req[SERVICE].spec_prog = SPEC_PROG_OC;
     DK[CUR_DK].REQ.req[SERVICE].work = SPEC_PROG;
     DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
     DK[CUR_DK].REQ.req[SERVICE].presence = true;
-    // установили флаги ДК ОС
-    for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].OSSOFT = true;
 }
 /*----------------------------------------------------------------------------*/
 void DK_Service_YF(void)
@@ -1471,10 +1510,10 @@ void DK_Service_KK(void)
 /*----------------------------------------------------------------------------*/
 void DK_Service_faza(const unsigned long faz_i)
 {
-     DK[CUR_DK].REQ.req[SERVICE].work = SINGLE_FAZA;
-     DK[CUR_DK].REQ.req[SERVICE].faza = faz_i;
-     DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
-     DK[CUR_DK].REQ.req[SERVICE].presence = true;
+    DK[CUR_DK].REQ.req[SERVICE].work = SINGLE_FAZA;
+    DK[CUR_DK].REQ.req[SERVICE].faza = faz_i;
+    DK[CUR_DK].REQ.req[SERVICE].source = SERVICE;
+    DK[CUR_DK].REQ.req[SERVICE].presence = true;
 }
 /*----------------------------------------------------------------------------*/
 // указатели на структуру

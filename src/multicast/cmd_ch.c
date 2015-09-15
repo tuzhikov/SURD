@@ -367,12 +367,14 @@ static void task_cmd_LED_func(void* param)
     }
 }
 /*----------------------------------------------------------------------------*/
-
 /* проверка запровсов от ВПУ или сети ----------------------------------------*/
 BOOL retAnswerVPU(void)
 {
 if(retNetworkOK()){
-  if(!retRequestsVPU()){vir_vpu.vpu[0].vpuOn = false;}
+  if(!retRequestsVPU()){
+    vir_vpu.vpu[0].vpuOn = false;
+    updateCurrentDatePhase(false,0,false,vir_vpu.vpu[0].phase);// включаем ВПУ по сети
+    }
   // проверяем все ВПУ
   for(int i=0;i<MAX_VIR_VPU;i++)
     {
@@ -384,6 +386,9 @@ if(retNetworkOK()){
     vir_vpu.vpu[0].id = 0;
     vir_vpu.vpu[0].phase = retStateVPU();
     vir_vpu.vpu[0].vpuOn = retOnVPU();
+    if(retNetworkOK()){// All DK network
+      updateCurrentDatePhase(true,0,true,vir_vpu.vpu[0].phase);// включаем ВПУ по сети
+      }
     }
   }
 return false;
@@ -435,7 +440,7 @@ if(typeCmd==SET_PHASE){
     const long passw =prg->surd.Pass;
     const long phase = vir_vpu.vpu[vir_vpu.index].phase; // отправить фазу для установки
     snprintf(pStr,leng,
-        "setphaseudp"
+        "setphaseudp\r"
         "ID:    %u\r\n"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
@@ -481,8 +486,11 @@ switch(stepMaster)
     clearStatusOneDk(indeDk);// нулим
     setStatusDk(0); // status master
     countsend =0;
-    if(retAnswerVPU())CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
-                 else CollectCmd(BuffCommand,sizeof(BuffCommand),SET_STATUS);// опрос статуса
+    if(retAnswerVPU())
+                  CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
+                 else
+                  CollectCmd(BuffCommand,sizeof(BuffCommand),SET_STATUS);// опрос статуса
+
   case One:
     if(retSurdIP(indeDk,&ipaddr)==retOk){
       udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
@@ -804,13 +812,13 @@ if(idp==idp_calc){
   }
 return false;
 }
-// устанавливаем ответы DK для мастера
+/* устанавливаем ответы от slave DK для мастера ---------------------------------------*/
 BOOL checkMasterMessageDk(const BYTE id,
-                    const DWORD pass,
-                    const DWORD idp,
-                    const DWORD st,
-                    const BYTE vpuOn,
-                    const BYTE vpuPhase)
+                          const DWORD pass,
+                          const DWORD idp,
+                          const DWORD st,
+                          const BYTE vpuOn,
+                          const BYTE vpuPhase)
 {
 const TPROJECT *prj = retPointPROJECT();
 //сравним  IDP
@@ -830,7 +838,7 @@ if(idp==idp_calc){// проект наш
   }
 return false;
 }
-// проверка возможности установки фазы
+/* проверка возможности установки фазы -------------------------------------- */
 BOOL checkPhaseDk (const BYTE id,
                     const DWORD pass,
                     const DWORD idp,
@@ -842,9 +850,10 @@ const long idp_calc = retCRC32();
 if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(id<prj->maxDK){
-      // включаем ВПУ по сети
-      updateCurrentDatePhase(true,id,true,phase);
-      return true;
+      if(retNetworkOK()){// All DK network
+          updateCurrentDatePhase(true,id,true,phase);// включаем ВПУ по сети
+          return true;
+          }
       }
     }
   }

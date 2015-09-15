@@ -13,21 +13,22 @@
 #include "types_define.h"
 /* type VPU*/
 #define MAX_BUTTON                  11
+#define MAX_BUTTON_PHASE            8
 #define MAX_LED                     11
 #define ADR_VPU                     1
 #define MAX_VPU_FAZE                8
 #define VPU_COUNT                   1
 
-typedef enum _Type_ANS_{ansNoAnsw=0x00,ansOk=0x01,ansErr=0x02}Type_ANS;
+typedef enum _Type_ANS_{ansNoAnsw=0x01,ansOk=0x02,ansErr=0x04}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
 typedef enum _Type_LED_{ledOff=0x00,ledBlink1 = 0x01,ledBlink2 = 0x02,
                         ledOn = 0x03}TYPE_LED_SATUS;
 typedef enum _Type_BUTT_{bOff,bDown,bUp,bOn,bEnd}Type_BUTT;
 typedef enum _Type_BUT_{ButPhase1=0,ButPhase2=1,ButPhase3=2,ButPhase4=3,ButPhase5=4,ButPhase6=5,
-                        ButPhase7=6,ButPhase8=7,ButTlOff=8,ButYllBlink=9,ButManual=10}Type_BUTTON;
+                        ButPhase7=6,ButPhase8=7,ButTlOff=8,ButAUTO=9,ButManual=10}Type_BUTTON;
 typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
                                tlPhase5=4,tlPhase6=5,tlPhase7=6,tlPhase8=7,
-                               tlOff=8,tlYellBlink=9,tlManual=10,tlEnd=11,tlNo=12}Type_STATUS_VPU;
+                               tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12}Type_STATUS_VPU;
 //typedef enum _MASK_BYTE_{0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01}MASK_BYTE;
 #pragma pack(push)  /* push current alignment to stack */
 #pragma pack(1)
@@ -114,5 +115,8 @@ Type_STATUS_VPU retStateVPU(void);
 BYTE retOnVPU(void);
 // тектосвое состояние ВПУ
 void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status);
+// test///////////////////////////////
+void DK_VPU_faza(const unsigned long faz_i);
+void DK_VPU_undo(void);
 
 #endif // __VPU_H__

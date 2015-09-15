@@ -283,16 +283,16 @@ void GPS_PPS_int_handler(void)
 
 }
 //------------------------------------------------------------------------------
-void Synk_TIME()
+BOOL Synk_TIME(void)
 {
      DS1390_TIME t;
      SYSTEMTIME st, n_st;
     ///
      if (!GPS_synk_flag)
-       return;
+       return false;
      //
      if (gps_pps_counter>1)
-       return;
+       return false;
      ///
      GPS_synk_flag=false;
      //////////////
@@ -336,6 +336,7 @@ void Synk_TIME()
               GPS_LED = 1;
             }
      }
+return true;
 }
 //------------------------------------------------------------------------------
 void Check_State_LED()

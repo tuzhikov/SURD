@@ -2,6 +2,8 @@
 // Fixed Alex Tuzhikov 2015
 /*----------------------------------------------------------------------------*/
 #include "takts.h"
+
+#define COEF_SEC 60
 /*----------------------------------------------------------------------------*/
 TPROJECT  *project[DK_N];
 TPROGRAM  PROG_NEXT;       //структура следующей программы
@@ -10,9 +12,9 @@ int       cur_prog[DK_N];  //текущая программа
 int       next_prog[DK_N]; //следующая
 prom_takts_faz_type      prom_takts[DK_N];   // пром. такты одной фазы
 osn_takts_faz_type       osn_takt[DK_N];     // основные такты  фазы
-int                      osn_takt_time[DK_N];//длина основного такта
-int       Tprom_len[DK_N];   // продолжительность пром. фазы рассчитанной
-                             // в функции Build_Takts
+DWORD                    osn_takt_time[DK_N];//длина основного такта
+DWORD                    Tprom_len[DK_N];    // продолжительность пром. фазы рассчитанной
+                                             // в функции Build_Takts
 /*--------------- Functions---------------------------------------------------*/
 void initTAKTS(TPROJECT *proj)
 {
@@ -315,7 +317,7 @@ void Build_Takts(int c_prog, int n_prog, int  cur_faz,int  next_faz)
          ///////////////////
          ////////////////////////
                prom_max = Calculate_Tprom_max(c_prog, n_prog, cur_faz, next_faz);
-               Tprom_len[CUR_DK] = prom_max;
+               Tprom_len[CUR_DK] = prom_max*COEF_SEC;
                //////
                // по всем направлениям
                for (i_napr = 0; i_napr < napr_n; i_napr ++)
@@ -337,7 +339,7 @@ void Build_Takts(int c_prog, int n_prog, int  cur_faz,int  next_faz)
                     {
 
                        osn_takt[CUR_DK][i_napr] = GREEN;  //цвет - зеленый
-                       osn_takt_time[CUR_DK] = GET_Tosn(c_prog, cur_faz);
+                       osn_takt_time[CUR_DK] = GET_Tosn(c_prog, cur_faz)*COEF_SEC;
                              //GET_P(c_prog, i_napr, cur_faz, P_ZD1)
                              //proga->fazas[cur_faz].Tosn;
                        /////
@@ -517,8 +519,7 @@ void Build_Takts(int c_prog, int n_prog, int  cur_faz,int  next_faz)
                     if (per_faz == -1)
                     {
                          osn_takt[CUR_DK][i_napr] = RED;  //цвет - зеленый
-                         osn_takt_time[CUR_DK] =
-                                GET_Tosn(c_prog,cur_faz);
+                         osn_takt_time[CUR_DK] = GET_Tosn(c_prog,cur_faz)*COEF_SEC;
                                 //proga->fazas[cur_faz].Tosn;
                          Gtakt =  GET_P(n_prog, i_napr, next_faz, P_ZD1);// +
 
@@ -607,8 +608,7 @@ void Build_Takts(int c_prog, int n_prog, int  cur_faz,int  next_faz)
                             prom_takts[CUR_DK][i_napr][0].time = prom_max;
                          }
                          ////
-                         osn_takt_time[CUR_DK] =
-                                        GET_Tosn(c_prog,cur_faz);
+                         osn_takt_time[CUR_DK] = GET_Tosn(c_prog,cur_faz)*COEF_SEC;
                           //proga->fazas[cur_faz].Tosn;;
                          ////
 
