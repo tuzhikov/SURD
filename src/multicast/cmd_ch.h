@@ -37,16 +37,18 @@ struct cmd_nfo
     char*           cmd_help;
     void            (*cmd_func)(struct cmd_raw* cmd_p, int argc, char** argv);
 };
-/////////////////////////////////
+// структура ВПУ для всех  сетевых устройств
 typedef struct _NET_VPU_{
   BYTE id;
   BYTE vpuOn;
   BYTE phase;
+  WORD stLED;
 }NET_VPU;
 typedef struct _VIR_VPU{
  NET_VPU vpu[MAX_VIR_VPU];
- BYTE index;
+ BYTE active; // работающий ВПУ
 }VIR_VPU;
+/*----------------------------------------------------------------------------*/
 // external value
 extern struct cmd_nfo   g_cmd_nfo[CMD_NFO_SZ];
 extern BOOL ETH_RECV_FLAG;
@@ -67,11 +69,8 @@ void flagClaerNetwork(void);
 void flagSetNetwork(const BOOL flag);
 void clearStatusDk(void);
 BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,
-                    const DWORD idp,const DWORD st,
-                    const BYTE vpuOn,const BYTE vpuPhase);
+                          const DWORD idp,const BYTE vpuOn,
+                          const BYTE vpuPhase,const WORD stled);
 BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const BOOL stnet,const BOOL sdnet);
-BOOL checkPhaseDk(const BYTE id,const DWORD pass,const DWORD idp,const DWORD phase);
-
-
 
 #endif // __CMD_CH_H__

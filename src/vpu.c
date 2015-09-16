@@ -8,7 +8,6 @@
 #include "crc16.h"
 #include "pins.h"
 #include "dk/dk.h"
-#include "multicast/cmd_ch.h"
 
 /*------------ UART      ------------------------------------------------*/
 #define SYSCTL_PERIPH_UART          SYSCTL_PERIPH_UART1
@@ -67,7 +66,10 @@ VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
 TVPU          dataVpuN[VPU_COUNT];
 int           cur_vpu=0; //номер текущего ВПУ
 
-/*---------- Functions----------------------------------------------------*/
+static int TimerOverflow = 0;
+/*---------------------Local functions----------------------------------------*/
+static void ResetStruct(void);
+/*---------- Functions--------------------------------------------------------*/
 // переключает контекст ВПУ-пультов
 void Switch_VPU_Context(int vpu_new)
 {
@@ -80,6 +82,11 @@ void Switch_VPU_Context(int vpu_new)
   ////
   cur_vpu = vpu_new;
 
+}
+// перезагрузка таймера
+static void resetTimerOverflow(void)
+{
+TimerOverflow = 0;
 }
 //------------------------------------------------------------------------------
 // Обновляет структуру m_t_s для ВСЕх ВПУ
@@ -94,17 +101,19 @@ void Update_m_t_s(MASTER_SLAVE_VPU *mts)
 
 }
 // обновить данные включить фазу----------------------------------------------//
-void updateCurrentDatePhase(const BYTE stNet,
-                            const BYTE idDk,
-                            const BYTE vpuOn,
-                            const BYTE vpuST)
+// если не будет вызывать более 10 сек, то происходит обнулние статуса сети
+void updateCurrentDatePhase(const BYTE stNet, // статус Net
+                            const BYTE idDk,  // ID активного ВПУ
+                            const BYTE vpuOn, // ВПУ on
+                            const BYTE vpuST) // Вызываемая Фаза
 {
 MASTER_SLAVE_VPU mts;
-mts.statusNEt = stNet;
+mts.statusNet = stNet;
 mts.vpuOn = vpuOn;
 mts.idDk = idDk;
 mts.vpu = (Type_STATUS_VPU)vpuST;
 Update_m_t_s(&mts);
+resetTimerOverflow();
 }
 //------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -301,6 +310,7 @@ static void ClearStatusButtonLed(void)
 // Только ОДна кнопка может быть нажата в текущий момент!
 static void UpdateSatus(void)
 {
+  static int btStat = Null;
   // bOn может быть только у 1 Кнопки
   // bUp - у нескольких нажатых
   // Ищем индексы
@@ -334,24 +344,31 @@ static void UpdateSatus(void)
   // восстанавливаем
   if (dataVpu.bOnIndx!=0xFF)
     dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
-  ////////////////////////////
+  // две одинаковые операции надо проверить в отладчике
   // Если есть нажатые
   if (bOnIndx!=0xFF)
      dataVpu.rButton[bOnIndx].On=bOn;
-///////////////////////////////////????????????????
-  // for РУ и AUTO
-  if(dataVpu.myRY){ // нет внешнего управления
-    if((dataVpu.rButton[ButManual].On==bUp)&&(dataVpu.rButton[ButAUTO].On==bOff)){
+
+// тригерный режим конопок РУ и АВТО
+  if(btStat==Null){
+    if(dataVpu.rButton[ButManual].On==bUp){
       dataVpu.rButton[ButManual].On=bOn;
+      dataVpu.rButton[ButAUTO].On=bOff;
+      btStat=One;
       }
-    if((dataVpu.rButton[ButManual].On==bOn)&&(dataVpu.rButton[ButAUTO].On==bUp)){
+    }else{
+     if(btStat==One){
+       if(dataVpu.rButton[ButAUTO].On==bUp){
+        dataVpu.rButton[ButAUTO].On=bOn;
+        dataVpu.rButton[ButManual].On=bOff;
+        btStat=Null;
+        }
+      }else{
+      btStat=Null;
+      dataVpu.rButton[ButAUTO].On=bOff;
       dataVpu.rButton[ButManual].On=bOff;
-      dataVpu.rButton[ButAUTO].On=bOn;
       }
-  }else{
-  dataVpu.rButton[ButManual].On=bOff;
-  dataVpu.rButton[ButAUTO].On=bOff;
-  }
+    }
 }
 //------------------------------------------------------------------------------
 /*Command VPU*/
@@ -447,16 +464,15 @@ Type_STATUS_VPU DataExchange(void)
         length = MessageCollect(Buff,sizeof(Buff),vpuCmd[number]);
         if(StrPutVPU(&TX1buff,Buff,length)!=0){
           memset(Buff,0,sizeof(Buff));
-          step = 1;
+          step = One;
           }
         return tlNo;
-      case 1:
+      case One:
         answer = StrGetVPU(&RX1buff,Buff,sizeof(Buff));
         if(answer&(ansOk|ansErr)){
           if(vpuCmd[number].FlagEnd){
             number = NULL;
-            step = 0;
-            //step2 = 0;
+            step = Null;
             return tlEnd;
             }
           dataVpu.satus = tlManual;
@@ -464,7 +480,7 @@ Type_STATUS_VPU DataExchange(void)
           countError = 0;
           }
         if(answer&(ansErr|ansNoAnsw)){
-          if(++countError>50)dataVpu.satus = tlOS; // 5 sec
+          if(++countError>50){dataVpu.satus = tlNo;return tlError;} // 5 sec
           }
         step = Null;
         return tlNo;
@@ -497,12 +513,14 @@ int ret_FAZA_num(Type_STATUS_VPU vpu)
 // отобразить текущее состояние на светодиодах ВПУ
 void showLED(void)
 {
-if(bOn == dataVpu.rButton[ButManual].On){// наш ВПУ активный, отображаем ссотояние LED
-  if(dataVpu.myRY){
+// отображаем LED на вызов кнопок
+if(bOn == dataVpu.rButton[ButManual].On){// ВПУ on
+  if(dataVpu.myRY){// наш ВПУ активный, отображаем ссотояние LED
     if(dataVpu.bOnIndx!=0xFF)//запрашиваемое состояние
       dataVpu.led[dataVpu.bOnIndx].On = ledBlink1;
     }
   }
+if(dataVpu.myRY){ // это отображаем только когда рулим сами надо проверить!!!!
 // смотрим - что щас на ДК
 if(SPEC_PROG == DK[CUR_DK].CUR.work){
   //ОС
@@ -522,17 +540,17 @@ if(PROG_FAZA == DK[CUR_DK].CUR.work){
   if (fz_n<MAX_VPU_FAZE)
     dataVpu.led[fz_n].On = ledOn;
   }
+}
 // LED AUTO  & LED MANUAL
-if(dataVpu.RY){
+if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
   dataVpu.led[ButAUTO].On = ledOff; // LED AUTO
-  if(bOn == dataVpu.rButton[ButManual].On){
-    if(dataVpu.myRY)
-      dataVpu.led[ButManual].On = ledOn;    // мы рулим
-      else
-      dataVpu.led[ButManual].On = ledBlink2;// не мы рулим
-    }
+  if(dataVpu.myRY)
+    dataVpu.led[ButManual].On = ledOn;    // мы рулим
+    else
+    dataVpu.led[ButManual].On = ledBlink2;// не мы рулим
   }else{
-  dataVpu.led[ButAUTO].On = ledOn;// LED AUTO
+  dataVpu.led[ButAUTO].On = ledOn;    // LED AUTO
+  dataVpu.led[ButTlOff].On = ledOff;  // LED OS
   dataVpu.led[ButManual].On = ledOff; // LED MANUAL
   }
 }
@@ -576,19 +594,24 @@ if(dataVpu.RY){ // рулим - выставляем в ДК состояния
 //Отображение LED
 showLED();
 }
+/*---------------------------------------------------------------------------*/
+static void ResetStruct(void)
+{
+memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
+vpu_exch.m_to_s.vpuOn= false;
+vpu_exch.m_to_s.vpu = tlNo;
+for(int i=0; i<VPU_COUNT; i++)
+  {
+  vpu_exchN[i].m_to_s.vpu = tlNo;
+  }
+}
 //------------------------------------------------------------------------------
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
   DataInstall();
-  //////
-  memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
-  vpu_exch.m_to_s.vpuOn= false;
-  vpu_exch.m_to_s.vpu = tlNo;
-  for (int i=0; i<VPU_COUNT; i++)
-    {
-    vpu_exchN[i].m_to_s.vpu = tlNo;
-    }
+  ResetStruct();
+  int CountErrorPolling = 0;
 
   for (;;)
     {
@@ -597,11 +620,21 @@ static void task_VPU_func(void* param)
       for (int i=0; i<VPU_COUNT; i++)
         {
         Switch_VPU_Context(i);
-        if(DataExchange()==tlEnd){
-          UpdateSatus();
-          if(retNetworkOK())VPU_LOGIC(); // status net OK
-                       else ClearStatusButtonLed(); // all clear
+        Type_STATUS_VPU stat = DataExchange();
+        if(stat==tlEnd){ // опрос закончен можно обновить статусы
+          if(vpu_exch.m_to_s.statusNet){UpdateSatus();VPU_LOGIC();} // status net OK
+                                  else {ClearStatusButtonLed();DK_VPU_undo();} // all clear mode AUTO
           }
+        if(stat==tlError){// ВПУ не подключен или ошибка опроса
+          if(++CountErrorPolling>3){
+            CountErrorPolling  =0;
+            memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
+            }
+          }
+        if(++TimerOverflow>30*10){ // выход из ВПУ по времени 30 сек
+          //vpu_exch.m_to_s.statusNet = false;
+          }
+        vpu_exch.m_to_s.statusNet = true;
         }
       // сохраним контекст последнего
       Switch_VPU_Context(VPU_COUNT-1);
@@ -744,46 +777,73 @@ BYTE retRequestsVPU(void)
 return ((vpu_exch.s_to_m.vpuOn)&&(vpu_exch.s_to_m.vpu!=tlNo)); //РУ on, вызвана фаза
 }
 /*--------------------- return text status ----------------------------*/
-void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status)
+void retPhaseToText(char *pStr,const BYTE phase)
 {
+const Type_STATUS_VPU status = (Type_STATUS_VPU)phase;
 switch(status)
   {
-  case tlNo:strcpy(pStr,"NO");return;
-  case tlPhase1:strcpy(pStr,"PHASE1");return;
-  case tlPhase2:strcpy(pStr,"PHASE2");return;
-  case tlPhase3:strcpy(pStr,"PHASE3");return;
-  case tlPhase4:strcpy(pStr,"PHASE4");return;
-  case tlPhase5:strcpy(pStr,"PHASE5");return;
-  case tlPhase6:strcpy(pStr,"PHASE6");return;
-  case tlPhase7:strcpy(pStr,"PHASE7");return;
-  case tlPhase8:strcpy(pStr,"PHASE8");return;
-  case tlOS:strcpy(pStr,"OFF");return;
+  case tlPhase1:strcpy(pStr,"1");return;
+  case tlPhase2:strcpy(pStr,"2");return;
+  case tlPhase3:strcpy(pStr,"3");return;
+  case tlPhase4:strcpy(pStr,"4");return;
+  case tlPhase5:strcpy(pStr,"5");return;
+  case tlPhase6:strcpy(pStr,"6");return;
+  case tlPhase7:strcpy(pStr,"7");return;
+  case tlPhase8:strcpy(pStr,"8");return;
+  case tlOS:strcpy(pStr,"OC");return;
   case tlAUTO:strcpy(pStr,"AUTO");return;
   case tlManual:strcpy(pStr,"MANUAL");return;
+  case tlNo:
+  default:strcpy(pStr,"NO");return;
   }
 }
 /*----------------------------------------------------------------------------*/
-BYTE retOnVPU(void){return vpu_exchN[cur_vpu].s_to_m.vpuOn;}
-Type_STATUS_VPU retStateVPU(void){return vpu_exchN[cur_vpu].s_to_m.vpu;}
-/**/
-/*static void OSDk(const BOOL Enabled)
+WORD retTextToPhase(char *pStr)
 {
-  if(Enabled){
-  for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].OS = true;
-  }else{
-  for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].OS = false;
-  }
-} */
-/**/
-/*static void YELDk(const char Enabled)
+if(strcmp(pStr,"1") == 0)return tlPhase1;
+if(strcmp(pStr,"2") == 0)return tlPhase2;
+if(strcmp(pStr,"3") == 0)return tlPhase3;
+if(strcmp(pStr,"4") == 0)return tlPhase4;
+if(strcmp(pStr,"5") == 0)return tlPhase5;
+if(strcmp(pStr,"6") == 0)return tlPhase6;
+if(strcmp(pStr,"7") == 0)return tlPhase7;
+if(strcmp(pStr,"8") == 0)return tlPhase8;
+if(strcmp(pStr,"OC") == 0)return tlOS;
+if(strcmp(pStr,"AUTO") == 0)return tlAUTO;
+if(strcmp(pStr,"MANUAL") == 0)return tlManual;
+return tlNo;
+}
+/*----------------------------------------------------------------------------*/
+BYTE retOnVPU(void){return vpu_exch.s_to_m.vpuOn;}
+/*----------------------------------------------------------------------------*/
+Type_STATUS_VPU retStateVPU(void){return vpu_exch.s_to_m.vpu;}
+/*----------------------------------------------------------------------------*/
+// состояния светофдиодов на ВПУ
+WORD retStatusLed(void)
 {
-  if(Enabled){
-  for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].YF = true;
-  }else{
-  for (int i_dk=0; i_dk<DK_N; i_dk++)
-           DK[i_dk].YF = false;
-  }
-}*/
+TVPU_LED_SEND led;
+led.LED1 = dataVpu.led[ButPhase1].On;
+led.LED2 = dataVpu.led[ButPhase2].On;
+led.LED3 = dataVpu.led[ButPhase3].On;
+led.LED4 = dataVpu.led[ButPhase4].On;
+led.LED5 = dataVpu.led[ButPhase5].On;
+led.LED6 = dataVpu.led[ButPhase6].On;
+led.LED7 = dataVpu.led[ButPhase7].On;
+led.LED8 = dataVpu.led[ButPhase8].On;
+return led.LED_STATUS;
+}
+/*----------------------------------------------------------------------------*/
+// отобразить сотояние светодиодов из вне
+void setStatusLed(const WORD stLed)
+{
+TVPU_LED_SEND led;
+led.LED_STATUS = stLed;
+dataVpu.led[ButPhase1].On = (TYPE_LED_SATUS)led.LED1;
+dataVpu.led[ButPhase2].On = (TYPE_LED_SATUS)led.LED2;
+dataVpu.led[ButPhase3].On = (TYPE_LED_SATUS)led.LED3;
+dataVpu.led[ButPhase4].On = (TYPE_LED_SATUS)led.LED4;
+dataVpu.led[ButPhase5].On = (TYPE_LED_SATUS)led.LED5;
+dataVpu.led[ButPhase6].On = (TYPE_LED_SATUS)led.LED6;
+dataVpu.led[ButPhase7].On = (TYPE_LED_SATUS)led.LED7;
+dataVpu.led[ButPhase8].On = (TYPE_LED_SATUS)led.LED8;
+}

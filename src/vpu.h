@@ -28,8 +28,7 @@ typedef enum _Type_BUT_{ButPhase1=0,ButPhase2=1,ButPhase3=2,ButPhase4=3,ButPhase
                         ButPhase7=6,ButPhase8=7,ButTlOff=8,ButAUTO=9,ButManual=10}Type_BUTTON;
 typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
                                tlPhase5=4,tlPhase6=5,tlPhase7=6,tlPhase8=7,
-                               tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12}Type_STATUS_VPU;
-//typedef enum _MASK_BYTE_{0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01}MASK_BYTE;
+                               tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12,tlError=15}Type_STATUS_VPU;
 #pragma pack(push)  /* push current alignment to stack */
 #pragma pack(1)
 typedef struct _VPU_BUTTON_{
@@ -48,6 +47,19 @@ typedef struct _VPU_{
   BOOL          RY;       //Флаг ручного управления
   BOOL          myRY;     //ручное управление - мы рулим
 }TVPU;
+// структура для отправки состояния светодиодов по сети
+typedef union _VPU_LED_SEND{
+  BYTE LED1:2;
+  BYTE LED2:2;
+  BYTE LED3:2;
+  BYTE LED4:2;
+  BYTE LED5:2;
+  BYTE LED6:2;
+  BYTE LED7:2;
+  BYTE LED8:2;
+  WORD LED_STATUS;
+}TVPU_LED_SEND;
+
 #pragma pack(pop)
 extern TVPU dataVpu;
 /*Type of request message without data*/
@@ -87,7 +99,7 @@ typedef struct _VPU_COMMAND_{
 // data exchange beetween master and slave
 typedef struct{
   // Статус сети //  0- OFF, 1- OK
-  BYTE                  statusNEt;
+  BYTE                  statusNet;
   ////  DK number
   BYTE                  idDk;
   // ВПУ включено или запрос РУ. 0- OFF, 1 - ON
@@ -113,10 +125,10 @@ void updateCurrentDatePhase(const BYTE stNet,const BYTE idDk,const BYTE vpuOn,
 BYTE retRequestsVPU(void);// ВПУ запросы
 Type_STATUS_VPU retStateVPU(void);
 BYTE retOnVPU(void);
+void setStatusLed(const WORD stLed);
+WORD retStatusLed(void);
 // тектосвое состояние ВПУ
-void retTextStatusVPU(char *pStr,const Type_STATUS_VPU status);
-// test///////////////////////////////
-void DK_VPU_faza(const unsigned long faz_i);
-void DK_VPU_undo(void);
+void retPhaseToText(char *pStr,const BYTE phase);
+WORD retTextToPhase(char *pStr);
 
 #endif // __VPU_H__
