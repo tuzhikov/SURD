@@ -387,6 +387,7 @@ if(retNetworkOK()){// проверки статуса соединения свех ДК
       if(vir_vpu.vpu[i].vpuOn){
         vir_vpu.active = i;
         stat=One;
+        return false;
         }
       }
     }
@@ -401,13 +402,13 @@ if(retNetworkOK()){// проверки статуса соединения свех ДК
           setStatusLed(vir_vpu.vpu[vir_vpu.active].stLED);
           }
          return true;
-        }else{
-        stat=Null;
         }
       }
   }
-memset(&vir_vpu,0,sizeof(vir_vpu));
-stat = 0; // сбросс сотояний
+//memset(&vir_vpu,0,sizeof(vir_vpu));
+// сбросить фазы для мастера
+updateCurrentDatePhase(false,0,false,tlNo);
+stat = Null; // сбросс сотояний
 return false;
 }
 /* переключение на OS and AUTO -----------------------------------------------*/
@@ -453,7 +454,7 @@ if(typeCmd==SET_STATUS){
   }
 if(typeCmd==SET_PHASE){
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
-    const long id = prg->surd.ID_DK_CUR;
+    const long id = vir_vpu.active;// ДК с включенным ВПУ
     const long idp = retCRC32();
     const long passw = prg->surd.Pass;
     const BOOL stnet = retNetworkOK(); // получить сетевой статус

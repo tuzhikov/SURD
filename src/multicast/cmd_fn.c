@@ -101,7 +101,7 @@ void cmd_debugee_func(struct cmd_raw* cmd_p, int argc, char** argv)
 /*----------------------------------------------------------------------------*/
 void cmd_setsatus_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-if (argc<5) // пришло не то
+if (argc<7) // пришло не то
     {
     udp_send_wrong_par(cmd_p);
     return;
@@ -185,23 +185,23 @@ unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0;
 if(strcmp(argv[0],"ID:")==0){
   sscanf(argv[1],"%u",&id);
   }
-if(strcmp(argv[0],"IDP:")==0){
-  sscanf(argv[1],"%u",&idp);
+if(strcmp(argv[2],"IDP:")==0){
+  sscanf(argv[3],"%u",&idp);
   }
-if(strcmp(argv[2],"PASSW:")==0){
-  sscanf(argv[3],"%u",&pass);
+if(strcmp(argv[4],"PASSW:")==0){
+  sscanf(argv[5],"%u",&pass);
   }
-if(strcmp(argv[4],"ST:")==0){
-  sscanf(argv[5],"%u",&fSn);
+if(strcmp(argv[6],"ST:")==0){
+  sscanf(argv[7],"%u",&fSn);
   }
-if(strcmp(argv[6],"SD:")==0){
-  sscanf(argv[7],"%u",&fSd);
+if(strcmp(argv[8],"SD:")==0){
+  sscanf(argv[9],"%u",&fSd);
   }
-if(strcmp(argv[8],"PHASE:")==0){
-  sscanf(argv[9],"%u",&phase);
+if(strcmp(argv[10],"PHASE:")==0){
+  sscanf(argv[11],"%u",&phase);
   }
-if(strcmp(argv[10],"LED:")==0){
-  sscanf(argv[11],"%u",&stLed);
+if(strcmp(argv[12],"LED:")==0){
+  sscanf(argv[13],"%u",&stLed);
   }
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
@@ -1596,7 +1596,7 @@ static err_t udp_send_config(struct cmd_raw* cmd_p)
 // "slave" cобираем ответ для мастера
 static err_t udp_send_surd(struct cmd_raw* cmd_p)
 {
-    char buf[200],txtPhase[15];
+    char buf[200],txtPhase[15]={0};
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
     const long idp = retCRC32();
     const BYTE currID = prg->surd.ID_DK_CUR;

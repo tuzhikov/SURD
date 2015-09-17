@@ -8,7 +8,7 @@
 #include "crc16.h"
 #include "pins.h"
 #include "dk/dk.h"
-
+#include "multicast/cmd_ch.h"
 /*------------ UART      ------------------------------------------------*/
 #define SYSCTL_PERIPH_UART          SYSCTL_PERIPH_UART1
 #define INT_UART                    INT_UART1
@@ -66,9 +66,8 @@ VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
 TVPU          dataVpuN[VPU_COUNT];
 int           cur_vpu=0; //номер текущего ВПУ
 
-static int TimerOverflow = 0;
 /*---------------------Local functions----------------------------------------*/
-static void ResetStruct(void);
+static void ResetStrMaster(void);
 /*---------- Functions--------------------------------------------------------*/
 // переключает контекст ВПУ-пультов
 void Switch_VPU_Context(int vpu_new)
@@ -82,11 +81,6 @@ void Switch_VPU_Context(int vpu_new)
   ////
   cur_vpu = vpu_new;
 
-}
-// перезагрузка таймера
-static void resetTimerOverflow(void)
-{
-TimerOverflow = 0;
 }
 //------------------------------------------------------------------------------
 // Обновляет структуру m_t_s для ВСЕх ВПУ
@@ -113,7 +107,6 @@ mts.vpuOn = vpuOn;
 mts.idDk = idDk;
 mts.vpu = (Type_STATUS_VPU)vpuST;
 Update_m_t_s(&mts);
-resetTimerOverflow();
 }
 //------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -480,7 +473,8 @@ Type_STATUS_VPU DataExchange(void)
           countError = 0;
           }
         if(answer&(ansErr|ansNoAnsw)){
-          if(++countError>50){dataVpu.satus = tlNo;return tlError;} // 5 sec
+          if(++countError>10){
+            countError = 0;dataVpu.satus = tlNo;return tlError;} // 5 sec
           }
         step = Null;
         return tlNo;
@@ -520,7 +514,7 @@ if(bOn == dataVpu.rButton[ButManual].On){// ВПУ on
       dataVpu.led[dataVpu.bOnIndx].On = ledBlink1;
     }
   }
-if(dataVpu.myRY){ // это отображаем только когда рулим сами надо проверить!!!!
+//if(dataVpu.myRY){ // это отображаем только когда рулим сами надо проверить!!!!
 // смотрим - что щас на ДК
 if(SPEC_PROG == DK[CUR_DK].CUR.work){
   //ОС
@@ -536,11 +530,11 @@ if(SINGLE_FAZA == DK[CUR_DK].CUR.work){
 // Программная фазы - надо ли ее отображать вообще?
 if(PROG_FAZA == DK[CUR_DK].CUR.work){
   int fz_prog =  DK[CUR_DK].CUR.prog_faza;
-  int fz_n =     PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa;
-  if (fz_n<MAX_VPU_FAZE)
-    dataVpu.led[fz_n].On = ledOn;
+  //int fz_n =     PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa;
+  if (fz_prog<MAX_VPU_FAZE)
+    dataVpu.led[fz_prog].On = ledOn;
   }
-}
+//}
 // LED AUTO  & LED MANUAL
 if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
   dataVpu.led[ButAUTO].On = ledOff; // LED AUTO
@@ -552,6 +546,19 @@ if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
   dataVpu.led[ButAUTO].On = ledOn;    // LED AUTO
   dataVpu.led[ButTlOff].On = ledOff;  // LED OS
   dataVpu.led[ButManual].On = ledOff; // LED MANUAL
+  }
+}
+// вызыв фаз работаем со структурой m_to_s
+void DK_Phase_Call(void)
+{
+// режим OS
+if (vpu_exch.m_to_s.vpu==tlOS) {
+  DK_VPU_OS();
+  }
+// Фазы
+int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
+if(fz_n!=0xFF){
+  DK_VPU_faza(fz_n);
   }
 }
 // Логика работы ВПУ
@@ -579,15 +586,7 @@ if(dataVpu.bOnIndx!=0xFF)
   vpu_exch.s_to_m.vpu = tlNo; //нет нажатых кнопок
 // проверка включенного РУ с мастера
 if(dataVpu.RY){ // рулим - выставляем в ДК состояния
-  // режим OS
-  if (vpu_exch.m_to_s.vpu==tlOS) {
-    DK_VPU_OS();
-    }
-  // Фазы
-  int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
-  if(fz_n!=0xFF) {
-    DK_VPU_faza(fz_n);
-    }
+  DK_Phase_Call();
   }else{// уходим в режим авто
   DK_VPU_undo(); // не управляем
   }
@@ -595,7 +594,7 @@ if(dataVpu.RY){ // рулим - выставляем в ДК состояния
 showLED();
 }
 /*---------------------------------------------------------------------------*/
-static void ResetStruct(void)
+static void ResetStrMaster(void)
 {
 memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
 vpu_exch.m_to_s.vpuOn= false;
@@ -605,13 +604,18 @@ for(int i=0; i<VPU_COUNT; i++)
   vpu_exchN[i].m_to_s.vpu = tlNo;
   }
 }
+/*---------------------------------------------------------------------------*/
+static void ResetStrSlave(void)
+{
+memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
+vpu_exch.s_to_m.vpu = tlNo;
+}
 //------------------------------------------------------------------------------
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
   DataInstall();
-  ResetStruct();
-  int CountErrorPolling = 0;
+  ResetStrMaster();
 
   for (;;)
     {
@@ -620,21 +624,29 @@ static void task_VPU_func(void* param)
       for (int i=0; i<VPU_COUNT; i++)
         {
         Switch_VPU_Context(i);
-        Type_STATUS_VPU stat = DataExchange();
+        Type_STATUS_VPU stat = DataExchange();      // опрос ВПУ
+        vpu_exch.m_to_s.statusNet = retNetworkOK(); // статус сети
         if(stat==tlEnd){ // опрос закончен можно обновить статусы
-          if(vpu_exch.m_to_s.statusNet){UpdateSatus();VPU_LOGIC();} // status net OK
-                                  else {ClearStatusButtonLed();DK_VPU_undo();} // all clear mode AUTO
+          if(vpu_exch.m_to_s.statusNet){
+            UpdateSatus();VPU_LOGIC();} // status net OK
+            else{
+            ClearStatusButtonLed();DK_VPU_undo();} // all clear mode AUTO
           }
         if(stat==tlError){// ВПУ не подключен или ошибка опроса
-          if(++CountErrorPolling>3){
-            CountErrorPolling  =0;
-            memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
+          ResetStrSlave();
+          // фазу надо вызвать
+          if(vpu_exch.m_to_s.statusNet){ // сеть есть?
+            if(vpu_exch.m_to_s.idDk!=PROJ[0].surd.ID_DK_CUR){//это не наш ВПУ
+              if(vpu_exch.m_to_s.vpuOn){ // включен, вызывает фазы
+                DK_Phase_Call();
+                }else{
+                DK_VPU_undo();
+                }
+              }
+            }else{
+            DK_VPU_undo();
             }
           }
-        if(++TimerOverflow>30*10){ // выход из ВПУ по времени 30 сек
-          //vpu_exch.m_to_s.statusNet = false;
-          }
-        vpu_exch.m_to_s.statusNet = true;
         }
       // сохраним контекст последнего
       Switch_VPU_Context(VPU_COUNT-1);
