@@ -58,10 +58,12 @@ err_t       udp_sendstr(struct cmd_raw* cmd_p, char const* s);
 err_t       udp_sendbuf(struct cmd_raw* cmd_p, char const* buf, int len);
 void        get_cmd_ch_ip(struct ip_addr* ipaddr);
 /*----------------------------------------------------------------------------*/
-DWORD retStatusSURD(void);
-void setStatusSURD(DWORD st);
-void setStatusDk(const BYTE nDk);
-BOOL getStatusDk(const BYTE nDk);
+DWORD retStatusNetDk(void);
+void  setStatusNetDk(DWORD st);
+DWORD retStatusDk(void);
+void setStatusDk(DWORD st);
+void setStatusOneDk(const BYTE nDk);
+BOOL getStatusOneDk(const BYTE nDk);
 void clearStatusOneDk(const BYTE nDk);
 BOOL getAllDk(void);
 BOOL retNetworkOK(void);

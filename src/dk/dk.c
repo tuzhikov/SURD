@@ -1252,6 +1252,10 @@ static void SET_NEXT_STATE(void)
                  GO_PLAN();
              }
           }
+        // ищем фазу после ВПУ
+        if((DK[CUR_DK].CUR.source==VPU)&&(DK[CUR_DK].NEXT.source==PLAN)){
+          DK[CUR_DK].NEXT.prog_faza = getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
+          }
         //
         if (DK[CUR_DK].CUR.source > DK[CUR_DK].NEXT.source)
         {

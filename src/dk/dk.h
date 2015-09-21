@@ -142,9 +142,10 @@ typedef struct __CONTROLLER
 } CONTROLLER;
 // Статус SURD
 typedef struct{
+  DWORD sendStatusDK;
   DWORD StatusDK;      // мах ДК 32
   BYTE  NetworkStatus;
-  BYTE  CountRequests;//
+  //BYTE  CountRequests;//
 }STATUS_SURD;
 // Структура - ДК
 typedef struct

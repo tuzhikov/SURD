@@ -47,21 +47,9 @@ typedef struct _VPU_{
   BOOL          RY;       //Флаг ручного управления
   BOOL          myRY;     //ручное управление - мы рулим
 }TVPU;
-// структура для отправки состояния светодиодов по сети
-typedef union _VPU_LED_SEND{
-  BYTE LED1:2;
-  BYTE LED2:2;
-  BYTE LED3:2;
-  BYTE LED4:2;
-  BYTE LED5:2;
-  BYTE LED6:2;
-  BYTE LED7:2;
-  BYTE LED8:2;
-  WORD LED_STATUS;
-}TVPU_LED_SEND;
-
 #pragma pack(pop)
 extern TVPU dataVpu;
+
 /*Type of request message without data*/
 #pragma pack(push)  /* push current alignment to stack */
 #pragma pack(1)
@@ -100,7 +88,7 @@ typedef struct _VPU_COMMAND_{
 typedef struct{
   // Статус сети //  0- OFF, 1- OK
   BYTE                  statusNet;
-  ////  DK number
+  // DK number
   BYTE                  idDk;
   // ВПУ включено или запрос РУ. 0- OFF, 1 - ON
   BYTE                  vpuOn;

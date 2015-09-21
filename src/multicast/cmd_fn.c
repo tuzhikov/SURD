@@ -123,6 +123,8 @@ if(strcmp(argv[6],"SD:")==0){
   }
 // установить сетевые статусы для slave
 checkSlaveMessageDk(idp,pass,fSn,fSd);
+// сбросить ВПУ
+updateCurrentDatePhase(false,0,false,tlNo);
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
@@ -165,7 +167,6 @@ if(strcmp(argv[6],"VPU:")==0){
   }
 if(strcmp(argv[8],"PHASE:")==0){
   vpuPhase = retTextToPhase(argv[9]);
-  //sscanf(argv[9],"%u",&vpuPhase);
   }
 if(strcmp(argv[10],"LED:")==0){
   sscanf(argv[11],"%u",&stLed);
@@ -1538,6 +1539,11 @@ if(DK[curr_dk].CUR.source==PLAN)    strcat(buf,"PLAN");
 strcat(buf," SURDNET=");
 if(retNetworkOK())strcat(buf,"OK");
              else strcat(buf,"NO");
+// add time left
+char tmpbuff[30];
+const long timeleft = DK[curr_dk].control.len;
+snprintf(tmpbuff, sizeof(tmpbuff), " TIME=%u",timeleft);
+strcat(buf,tmpbuff); // в основной буффер
 // send UDP
 return udp_sendstr(cmd_p, buf);
 }
@@ -1606,7 +1612,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const BYTE nPhase = retStateVPU(); // фаза на ВПУ
     const WORD stLed = retStatusLed(); // состояние светодиодов
     retPhaseToText(txtPhase,nPhase);
-
+    const DWORD stNEt = retStatusNetDk();
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
         "ID:    %u\r\n"
@@ -1616,7 +1622,8 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "PHASE: %s\r\n"
         "LED:   %u\r\n"
         "VER:   %u\r\n"
-        "SURD:  %s\r\n",
+        "SURD:  %s\r\n"
+        "ST:    %u\r\n",
         currID,
         idp,
         Passw,
@@ -1624,7 +1631,8 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         txtPhase,
         stLed,
         VER_MAJOR,
-        StatusNet? "OK":" NO");
+        StatusNet? "OK":" NO",
+        stNEt);
 
 return udp_sendstr(cmd_p, buf); // отправка буффера
 }

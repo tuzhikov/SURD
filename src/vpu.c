@@ -22,6 +22,8 @@
 #define RST485_OFF()                pin_off(OPIN_485_RST)
 #define RST485_ON()                 pin_on(OPIN_485_RST)
 
+/*MUTEX*/
+static TN_MUTEX    led_mutex;
 /* UART*/
 static UART_SBUF   TX1buff, RX1buff;
 static U08         TX1buff_mem[TX1_BUFF_SIZE];
@@ -140,6 +142,16 @@ void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
     /*Clear buff VPU*/
     memset(&dataVpu,0,sizeof(dataVpu));
 
+//create sync mutex
+if (tn_mutex_create(&led_mutex, TN_MUTEX_ATTR_INHERIT, 0) != TERR_NO_ERR)
+    {
+        dbg_puts("tn_mutex_create(&led_mutex) error");
+        dbg_trace();
+        tn_halt();
+    }
+// tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
+// tn_mutex_unlock(&led_mutex);
+// create task
 if (tn_task_create(&task_VPU_tcb, &task_VPU_func, TASK_VPU_PRI,
         &task_VPU_stk[TASK_VPU_STK_SZ - 1], TASK_VPU_STK_SZ, 0,
         TN_TASK_START_ON_CREATION) != TERR_NO_ERR)
@@ -309,17 +321,21 @@ static void UpdateSatus(void)
   // Ищем индексы
   int bUpIndx=0xFF;
   int bOnIndx=0xFF;
-  for(int i=0;i<MAX_BUTTON_PHASE;i++) {
+// обрабатываем кнопки, только
+if((dataVpu.myRY)||(!dataVpu.RY)){
+  for(int i=0;i<MAX_BUTTON_PHASE;i++)
+    {
     if(dataVpu.rButton[i].On==bUp) {
         bUpIndx=i; break;
     }
-  }
+    }
   ////
-  for(int i=0;i<MAX_BUTTON_PHASE;i++) {
+  for(int i=0;i<MAX_BUTTON_PHASE;i++)
+    {
     if(dataVpu.rButton[i].On==bOn) {
         bOnIndx=i; break;
     }
-  }
+    }
   //новые нажатые кнопочки
   if(bUpIndx!=0xFF) {
     bOnIndx=bUpIndx;
@@ -341,7 +357,7 @@ static void UpdateSatus(void)
   // Если есть нажатые
   if (bOnIndx!=0xFF)
      dataVpu.rButton[bOnIndx].On=bOn;
-
+}
 // тригерный режим конопок РУ и АВТО
   if(btStat==Null){
     if(dataVpu.rButton[ButManual].On==bUp){
@@ -403,7 +419,7 @@ void DK_VPU_OS(void)
 {
     DK[CUR_DK].REQ.req[VPU].spec_prog = SPEC_PROG_OC;
     DK[CUR_DK].REQ.req[VPU].work = SPEC_PROG;
-    DK[CUR_DK].REQ.req[VPU].source = SERVICE;
+    DK[CUR_DK].REQ.req[VPU].source = VPU; //SERVICE;
     DK[CUR_DK].REQ.req[VPU].presence = true;
 }
 /*----------------------------------------------------------------------------*/
@@ -411,7 +427,7 @@ void DK_VPU_YF(void)
 {
     DK[CUR_DK].REQ.req[VPU].spec_prog = SPEC_PROG_YF;
     DK[CUR_DK].REQ.req[VPU].work = SPEC_PROG;
-    DK[CUR_DK].REQ.req[VPU].source = SERVICE;
+    DK[CUR_DK].REQ.req[VPU].source = VPU;//SERVICE;
     DK[CUR_DK].REQ.req[VPU].presence = true;
 }
 //------------------------------------------------------------------------------
@@ -431,7 +447,7 @@ void DK_VPU_KK(void)
 {
     DK[CUR_DK].REQ.req[VPU].spec_prog = SPEC_PROG_KK;
     DK[CUR_DK].REQ.req[VPU].work = SPEC_PROG;
-    DK[CUR_DK].REQ.req[VPU].source = SERVICE;
+    DK[CUR_DK].REQ.req[VPU].source = VPU;
     DK[CUR_DK].REQ.req[VPU].presence = true;
 }
 /*----------------------------------------------------------------------------*/
@@ -439,7 +455,7 @@ void DK_VPU_faza(const unsigned long faz_i)
 {
      DK[CUR_DK].REQ.req[VPU].work = SINGLE_FAZA;
      DK[CUR_DK].REQ.req[VPU].faza = faz_i;
-     DK[CUR_DK].REQ.req[VPU].source = SERVICE;
+     DK[CUR_DK].REQ.req[VPU].source = VPU;
      DK[CUR_DK].REQ.req[VPU].presence = true;
 }
 //------------------------------------------------------------------------------
@@ -514,27 +530,28 @@ if(bOn == dataVpu.rButton[ButManual].On){// ВПУ on
       dataVpu.led[dataVpu.bOnIndx].On = ledBlink1;
     }
   }
-//if(dataVpu.myRY){ // это отображаем только когда рулим сами надо проверить!!!!
-// смотрим - что щас на ДК
-if(SPEC_PROG == DK[CUR_DK].CUR.work){
-  //ОС
-  if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog)
-    dataVpu.led[ButTlOff].On = ledOn;
-  }
-// Одиночные фазы (режим ВПУ?)
-if(SINGLE_FAZA == DK[CUR_DK].CUR.work){
-  int fz_n =  DK[CUR_DK].CUR.faza;
-  if(fz_n<MAX_VPU_FAZE)
-    dataVpu.led[fz_n].On = ledOn;
-  }
-// Программная фазы - надо ли ее отображать вообще?
-if(PROG_FAZA == DK[CUR_DK].CUR.work){
-  int fz_prog =  DK[CUR_DK].CUR.prog_faza;
-  //int fz_n =     PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa;
-  if (fz_prog<MAX_VPU_FAZE)
-    dataVpu.led[fz_prog].On = ledOn;
-  }
-//}
+// Отображаем только когда рулим сами или нет ни одного включенного ВПУ
+if((dataVpu.myRY)||(!dataVpu.RY)){
+  // смотрим - что щас на ДК
+  if(SPEC_PROG == DK[CUR_DK].CUR.work){
+    //ОС
+    if (SPEC_PROG_OC == DK[CUR_DK].CUR.spec_prog)
+      dataVpu.led[ButTlOff].On = ledOn;
+    }
+  // Одиночные фазы (режим ВПУ?)
+  if(SINGLE_FAZA == DK[CUR_DK].CUR.work){
+    int fz_n =  DK[CUR_DK].CUR.faza;
+    if(fz_n<MAX_VPU_FAZE)
+      dataVpu.led[fz_n].On = ledOn;
+    }
+  // Программная фазы - надо ли ее отображать вообще?
+  if(PROG_FAZA == DK[CUR_DK].CUR.work){
+    int fz_prog =  DK[CUR_DK].CUR.prog_faza;
+    //int fz_n =     PROJ[CUR_DK].Program.fazas[fz_prog].NumFasa; // это номер фазы из шаблона
+    if (fz_prog<MAX_VPU_FAZE)
+      dataVpu.led[fz_prog].On = ledOn;
+    }
+}
 // LED AUTO  & LED MANUAL
 if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
   dataVpu.led[ButAUTO].On = ledOff; // LED AUTO
@@ -605,6 +622,7 @@ for(int i=0; i<VPU_COUNT; i++)
   }
 }
 /*---------------------------------------------------------------------------*/
+// сброс параметров подключенного ВПУ
 static void ResetStrSlave(void)
 {
 memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
@@ -614,42 +632,53 @@ vpu_exch.s_to_m.vpu = tlNo;
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
+  static int fStatus = 0;
   DataInstall();
   ResetStrMaster();
 
   for (;;)
     {
-      tn_task_sleep(VPU_REFRESH_INTERVAL);
-
-      for (int i=0; i<VPU_COUNT; i++)
-        {
-        Switch_VPU_Context(i);
-        Type_STATUS_VPU stat = DataExchange();      // опрос ВПУ
-        vpu_exch.m_to_s.statusNet = retNetworkOK(); // статус сети
-        if(stat==tlEnd){ // опрос закончен можно обновить статусы
-          if(vpu_exch.m_to_s.statusNet){
-            UpdateSatus();VPU_LOGIC();} // status net OK
-            else{
-            ClearStatusButtonLed();DK_VPU_undo();} // all clear mode AUTO
-          }
-        if(stat==tlError){// ВПУ не подключен или ошибка опроса
-          ResetStrSlave();
-          // фазу надо вызвать
-          if(vpu_exch.m_to_s.statusNet){ // сеть есть?
-            if(vpu_exch.m_to_s.idDk!=PROJ[0].surd.ID_DK_CUR){//это не наш ВПУ
-              if(vpu_exch.m_to_s.vpuOn){ // включен, вызывает фазы
-                DK_Phase_Call();
-                }else{
-                DK_VPU_undo();
-                }
-              }
-            }else{
-            DK_VPU_undo();
-            }
-          }
+    tn_task_sleep(VPU_REFRESH_INTERVAL);
+    //for (int i=0; i<VPU_COUNT; i++)
+    //{
+    //Switch_VPU_Context(i);
+    Type_STATUS_VPU answer = DataExchange();      // опрос ВПУ
+    vpu_exch.m_to_s.statusNet = retNetworkOK(); // статус сети
+    // ВПУ подключен, отвечает
+    if(answer==tlEnd){//опрос закончен можно обновить статусы
+      fStatus = Null;
+      if(vpu_exch.m_to_s.statusNet){ // status net OK
+        UpdateSatus();
+        VPU_LOGIC();
+        }else{ // all clear mode AUTO
+        ClearStatusButtonLed();
+        DK_VPU_undo();
         }
-      // сохраним контекст последнего
-      Switch_VPU_Context(VPU_COUNT-1);
+      }// end stat==tlEnd
+    // ВПУ не подключен или ошибка опроса
+    if(answer==tlError){
+      if(vpu_exch.m_to_s.idDk!=PROJ[CUR_DK].surd.ID_DK_CUR){//это не наш ВПУ
+        fStatus = One;
+        }
+      ResetStrSlave();
+      ClearStatusButtonLed();
+      }
+    // ВПУ не подключен или выключен "ошибка опроса"
+    if(fStatus==One){
+      // сеть есть?
+      if(vpu_exch.m_to_s.statusNet){
+          if(vpu_exch.m_to_s.vpuOn){ // включен, вызывает фазы
+            DK_Phase_Call(); // вызываем фазы
+            }else{
+            DK_VPU_undo();   // возвращаемся в план
+            }
+        }else{ // сети нет, отключаем светодиоды и переходим на план
+        DK_VPU_undo(); // возвращаемся в план
+        }
+      }
+    //}
+    // сохраним контекст последнего
+    //Switch_VPU_Context(VPU_COUNT-1);
     }
 
 }
@@ -833,29 +862,27 @@ Type_STATUS_VPU retStateVPU(void){return vpu_exch.s_to_m.vpu;}
 // состояния светофдиодов на ВПУ
 WORD retStatusLed(void)
 {
-TVPU_LED_SEND led;
-led.LED1 = dataVpu.led[ButPhase1].On;
-led.LED2 = dataVpu.led[ButPhase2].On;
-led.LED3 = dataVpu.led[ButPhase3].On;
-led.LED4 = dataVpu.led[ButPhase4].On;
-led.LED5 = dataVpu.led[ButPhase5].On;
-led.LED6 = dataVpu.led[ButPhase6].On;
-led.LED7 = dataVpu.led[ButPhase7].On;
-led.LED8 = dataVpu.led[ButPhase8].On;
-return led.LED_STATUS;
+WORD led = 0;
+tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
+led = dataVpu.led[ButPhase8].On<<14|dataVpu.led[ButPhase7].On<<12|
+      dataVpu.led[ButPhase6].On<<10|dataVpu.led[ButPhase5].On<<8|
+      dataVpu.led[ButPhase4].On<<6|dataVpu.led[ButPhase3].On<<4|
+      dataVpu.led[ButPhase2].On<<2|dataVpu.led[ButPhase1].On<<0;
+tn_mutex_unlock(&led_mutex);
+return led;
 }
 /*----------------------------------------------------------------------------*/
 // отобразить сотояние светодиодов из вне
 void setStatusLed(const WORD stLed)
 {
-TVPU_LED_SEND led;
-led.LED_STATUS = stLed;
-dataVpu.led[ButPhase1].On = (TYPE_LED_SATUS)led.LED1;
-dataVpu.led[ButPhase2].On = (TYPE_LED_SATUS)led.LED2;
-dataVpu.led[ButPhase3].On = (TYPE_LED_SATUS)led.LED3;
-dataVpu.led[ButPhase4].On = (TYPE_LED_SATUS)led.LED4;
-dataVpu.led[ButPhase5].On = (TYPE_LED_SATUS)led.LED5;
-dataVpu.led[ButPhase6].On = (TYPE_LED_SATUS)led.LED6;
-dataVpu.led[ButPhase7].On = (TYPE_LED_SATUS)led.LED7;
-dataVpu.led[ButPhase8].On = (TYPE_LED_SATUS)led.LED8;
+const BYTE MASK = 0x03;
+dataVpu.led[ButPhase8].On = (TYPE_LED_SATUS)((stLed>>14)&MASK);
+dataVpu.led[ButPhase7].On = (TYPE_LED_SATUS)((stLed>>12)&MASK);
+dataVpu.led[ButPhase6].On = (TYPE_LED_SATUS)((stLed>>10)&MASK);
+dataVpu.led[ButPhase5].On = (TYPE_LED_SATUS)((stLed>>8)&MASK);
+dataVpu.led[ButPhase4].On = (TYPE_LED_SATUS)((stLed>>6)&MASK);
+dataVpu.led[ButPhase3].On = (TYPE_LED_SATUS)((stLed>>4)&MASK);
+dataVpu.led[ButPhase2].On = (TYPE_LED_SATUS)((stLed>>2)&MASK);
+dataVpu.led[ButPhase1].On = (TYPE_LED_SATUS)((stLed>>0)&MASK);
 }
+/*----------------------------------------------------------------------------*/

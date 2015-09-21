@@ -438,7 +438,7 @@ if(typeCmd==SET_STATUS){
   const long idp = retCRC32();
   const long passw =prg->surd.Pass;  // получить пароль
   const BOOL stnet = retNetworkOK(); // получить сетевой статус
-  const long sdnet = retStatusSURD();
+  const long sdnet = retStatusNetDk();
 
   snprintf(pStr,leng,
         "setstatussurd\r"
@@ -458,7 +458,7 @@ if(typeCmd==SET_PHASE){
     const long idp = retCRC32();
     const long passw = prg->surd.Pass;
     const BOOL stnet = retNetworkOK(); // получить сетевой статус
-    const long sdnet = retStatusSURD();
+    const long sdnet = retStatusNetDk();
     const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
 
@@ -513,7 +513,7 @@ switch(stepMaster)
   {
   case Null: //сбросс
     clearStatusOneDk(indeDk);// нулим
-    setStatusDk(0); // status master
+    setStatusOneDk(0); // status master
     countsend =0;
     if(retAnswerVPU())
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
@@ -530,7 +530,7 @@ switch(stepMaster)
     return retNull;
   case Two: // answer
     stepMaster=One;
-    if(getStatusDk(indeDk)){//ответ получен
+    if(getStatusOneDk(indeDk)){//ответ получен
       if(++indeDk<ret->maxDK){
         stepMaster=Null;}
         else{
@@ -543,6 +543,7 @@ switch(stepMaster)
   case Three: // установить сетевой статус
     if(getAllDk()){
       flagSetNetwork(true);
+      setStatusNetDk(retStatusDk());
       if(++countmessageOk>5){
         countmessageErr = 0;
         fMessageErr = false;
@@ -550,6 +551,7 @@ switch(stepMaster)
         }
       }else{
       flagSetNetwork(false);
+      setStatusNetDk(retStatusDk());
       if(++countmessageErr>5){
         countmessageOk  =0;
         fMessageOk = false;
@@ -586,7 +588,7 @@ Type_Return slaveDk(const TPROJECT *ret)
 static BYTE stepSlave = Null,countTime = 0,countOk = 0,countError = 0;
 static BOOL fMessageErr = false,fMessageOk = false;
 
-if(++countTime>10){
+if(++countTime>20){ // 2S delay
   countTime = 0;
   switch(stepSlave)
     {
@@ -595,15 +597,15 @@ if(++countTime>10){
       stepSlave = One;
       return retNull;
     case One:
-      if(getAllDk()){
-        flagSetNetwork(true);
+      if(getAllDk()){ // ДК в сети
+        flagSetNetwork(true); // установить статус сети
         if(++countOk>3){
           countOk = 0;
           fMessageErr = false;
           if(!fMessageOk){Event_Push_Str("SUCCESS: Все ДК в сети");fMessageOk = true;}
           }
         }else{
-        flagSetNetwork(false);
+        flagSetNetwork(false); // установить статус сети
         if(++countError>3){
           countError = 0;
           fMessageOk = false;
@@ -800,13 +802,13 @@ return true;
 }
 /*----------------------------------------------------------------------------*/
 // установть новый статус ДК
-void setStatusDk(const BYTE nDk)
+void setStatusOneDk(const BYTE nDk)
 {
 DK[CUR_DK].StatusSurd.StatusDK|=1<<nDk;
 }
 /*----------------------------------------------------------------------------*/
 // запросить статус
-BOOL getStatusDk(const BYTE nDk)
+BOOL getStatusOneDk(const BYTE nDk)
 {
 return (BOOL)(DK[CUR_DK].StatusSurd.StatusDK)&(1<<nDk);
 }
@@ -824,15 +826,25 @@ DK[CUR_DK].StatusSurd.StatusDK=NULL;
 }
 /*----------------------------------------------------------------------------*/
 // return status
-DWORD retStatusSURD(void)
+DWORD retStatusDk(void)
 {
 return DK[CUR_DK].StatusSurd.StatusDK;
 }
 /*----------------------------------------------------------------------------*/
 // set all status surd
-void setStatusSURD(DWORD st)
+void setStatusDk(DWORD st)
 {
 DK[CUR_DK].StatusSurd.StatusDK = st;
+}
+/*----------------------------------------------------------------------------*/
+DWORD retStatusNetDk(void)
+{
+return DK[CUR_DK].StatusSurd.sendStatusDK;
+}
+/*----------------------------------------------------------------------------*/
+void  setStatusNetDk(DWORD st)
+{
+DK[CUR_DK].StatusSurd.sendStatusDK = st;
 }
 /*----------------------------------------------------------------------------*/
 // "slave" проверяем запросы ДК от мастера и устанавливаем сетевой статус
@@ -844,7 +856,7 @@ if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(prj->surd.ID_DK_CUR){// это slave
       flagSetNetwork(stnet); // установка флага всех ДК
-      setStatusSURD(sdnet);  // флаг проверки
+      setStatusDk(sdnet);  // флаг проверки
       return true;
       }
     }
@@ -868,7 +880,8 @@ if(idp==idp_calc){// проект наш
   if(pass==prj->surd.Pass){
     if(id<prj->maxDK){
       if(prj->surd.ID_DK_CUR==0){ //DK master
-        setStatusDk(id);//дк ответил
+        setStatusOneDk(id);//дк ответил
+        vir_vpu.vpu[id].id = id;
         vir_vpu.vpu[id].vpuOn = vpuOn;
         vir_vpu.vpu[id].phase = vpuPhase;
         vir_vpu.vpu[id].stLED = stled;
