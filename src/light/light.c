@@ -588,8 +588,8 @@ for (;;)
       Get_gps_info(&gps);
       switch(fStat)
         {
-        case Null: // первый старт
-          if(gps.fix_valid==false){// выходим с аварией
+        case Null: // первый старт time_valid
+          if(gps.time_valid==false){// выходим с аварией gps.fix_valid
             tn_task_sleep(2000);
             DK_ALARM_OC();
             break;}
@@ -598,18 +598,18 @@ for (;;)
           fStat=One;
           break;
         case One:// нет данных GPS
-          if(!gps.fix_valid){TimeErrorGPS = 0;fStat=Two;}
+          if(!gps.time_valid){TimeErrorGPS = 0;fStat=Two;} // gps.fix_valid
           break;
         case Two:// задерка на выключение 5 мин
           if(++TimeErrorGPS>300){DK_ALARM_OC();fStat=Three;}
-          if(gps.fix_valid)fStat=One;
+          if(gps.time_valid)fStat=One; //gps.fix_valid
           break;
         case Three://ждем GPS данные
-          if(gps.fix_valid){TimeErrorGPS =0;fStat=Five;}
+          if(gps.time_valid){TimeErrorGPS =0;fStat=Five;} // gps.fix_valid
           break;
         case Five:// задерка на включение 2 мин
           if(++TimeErrorGPS>120){DK_ALARM_undo();fStat=One;}
-          if(!gps.fix_valid)fStat=Three;
+          if(!gps.time_valid)fStat=Three; // gps.fix_valid
           break;
         default:fStat=One;break;
         }

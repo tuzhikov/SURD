@@ -63,16 +63,17 @@ static Type_ANS StrGetVPU(UART_SBUF * buf,U08* str, U16 size);
 VPU_EXCHANGE  vpu_exch;
 TVPU dataVpu;
 
-/////////
-VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
-TVPU          dataVpuN[VPU_COUNT];
-int           cur_vpu=0; //номер текущего ВПУ
+// если несколько ВПУ
+//VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
+//TVPU          dataVpuN[VPU_COUNT];
+//int           cur_vpu=0; //номер текущего ВПУ
 
 /*---------------------Local functions----------------------------------------*/
 static void ResetStrMaster(void);
+void DK_VPU_undo(void);
 /*---------- Functions--------------------------------------------------------*/
 // переключает контекст ВПУ-пультов
-void Switch_VPU_Context(int vpu_new)
+/*void Switch_VPU_Context(int vpu_new)
 {
   // 1 сохраняем текущий контекст
   memcpy(&vpu_exchN[cur_vpu], &vpu_exch, sizeof(vpu_exch));
@@ -83,6 +84,14 @@ void Switch_VPU_Context(int vpu_new)
   ////
   cur_vpu = vpu_new;
 
+}  */
+/*----------------------------------------------------------------------------*/
+// проверка перехода на новую фазу
+BOOL checkJumpPhase(void)
+{
+if(dataVpu.fixBut)
+  return (DK[CUR_DK].REQ.req[VPU].faza==DK[CUR_DK].CUR.faza)? true:false;
+return true;
 }
 //------------------------------------------------------------------------------
 // Обновляет структуру m_t_s для ВСЕх ВПУ
@@ -91,9 +100,10 @@ void Update_m_t_s(MASTER_SLAVE_VPU *mts)
     //текущий контекст
     memcpy(&vpu_exch.m_to_s, mts, sizeof(vpu_exch.m_to_s));
     //
-    for (int i=0; i<VPU_COUNT; i++) {
+    /*for (int i=0; i<VPU_COUNT; i++)
+    {
       memcpy(&vpu_exchN[i].m_to_s, mts, sizeof(vpu_exch.m_to_s));
-    }
+    }*/
 
 }
 // обновить данные включить фазу----------------------------------------------//
@@ -109,6 +119,18 @@ mts.vpuOn = vpuOn;
 mts.idDk = idDk;
 mts.vpu = (Type_STATUS_VPU)vpuST;
 Update_m_t_s(&mts);
+}
+// сбросить режим ВПУ вернуться к АВТО
+void setPlanMode(void)
+{
+// сбросс запроса ВПУ
+DK_VPU_undo();
+// сбросс структуры m_to_s
+updateCurrentDatePhase(0,0,0,tlNo);
+// сбросс значений фазы структуры s_to_m
+vpu_exch.s_to_m.vpu = tlNo;
+// установить флаг перехода на
+dataVpu.fsetPlan  = true;
 }
 //------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -321,22 +343,26 @@ static void UpdateSatus(void)
   // Ищем индексы
   int bUpIndx=0xFF;
   int bOnIndx=0xFF;
-// обрабатываем кнопки, только
-if((dataVpu.myRY)||(!dataVpu.RY)){
+// обрабатываем кнопки фаз только по условию
+if(((dataVpu.myRY)||(!dataVpu.RY))&&(checkJumpPhase())){
+  dataVpu.fixBut = false;
+  // кнопка нажата
   for(int i=0;i<MAX_BUTTON_PHASE;i++)
     {
     if(dataVpu.rButton[i].On==bUp) {
         bUpIndx=i; break;
+      }
     }
-    }
-  ////
+  // кнопка зафиксирована
   for(int i=0;i<MAX_BUTTON_PHASE;i++)
     {
     if(dataVpu.rButton[i].On==bOn) {
-        bOnIndx=i; break;
+      dataVpu.fixBut = true;
+      bOnIndx=i;
+      break;
+      }
     }
-    }
-  //новые нажатые кнопочки
+  //новые нажатые кнопочки фиксация
   if(bUpIndx!=0xFF) {
     bOnIndx=bUpIndx;
     }
@@ -344,20 +370,17 @@ if((dataVpu.myRY)||(!dataVpu.RY)){
   // Чистим все
   for(int i=0;i<MAX_BUTTON_PHASE;i++)
     {
-    if (dataVpu.rButton[i].On != bDown)
+    if (dataVpu.rButton[i].On != bDown){
       dataVpu.rButton[i].On=bOff;
+      }
     //LED OFF
     dataVpu.led[i].On=ledOff;
     }
-
   // восстанавливаем
   if (dataVpu.bOnIndx!=0xFF)
     dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
-  // две одинаковые операции надо проверить в отладчике
-  // Если есть нажатые
-  if (bOnIndx!=0xFF)
-     dataVpu.rButton[bOnIndx].On=bOn;
 }
+
 // тригерный режим конопок РУ и АВТО
   if(btStat==Null){
     if(dataVpu.rButton[ButManual].On==bUp){
@@ -519,7 +542,7 @@ int ret_FAZA_num(Type_STATUS_VPU vpu)
             }
   return(ret_f);
 }
-//------------------------------------------------------------------------------
+//----------------------------------------------------------------------------//
 // отобразить текущее состояние на светодиодах ВПУ
 void showLED(void)
 {
@@ -551,7 +574,7 @@ if((dataVpu.myRY)||(!dataVpu.RY)){
     if (fz_prog<MAX_VPU_FAZE)
       dataVpu.led[fz_prog].On = ledOn;
     }
-}
+  } // end LED Phase
 // LED AUTO  & LED MANUAL
 if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
   dataVpu.led[ButAUTO].On = ledOff; // LED AUTO
@@ -578,7 +601,7 @@ if(fz_n!=0xFF){
   DK_VPU_faza(fz_n);
   }
 }
-// Логика работы ВПУ
+/* Логика работы ВПУ----------------------------------------------------------*/
 void VPU_LOGIC()
 {
 // Устанавливаем флаги РУ, кто-то рулит ДК
@@ -605,7 +628,8 @@ if(dataVpu.bOnIndx!=0xFF)
 if(dataVpu.RY){ // рулим - выставляем в ДК состояния
   DK_Phase_Call();
   }else{// уходим в режим авто
-  DK_VPU_undo(); // не управляем
+  //DK_VPU_undo(); // не управляем
+  setPlanMode(); // exit to PLAN
   }
 //Отображение LED
 showLED();
@@ -616,10 +640,6 @@ static void ResetStrMaster(void)
 memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
 vpu_exch.m_to_s.vpuOn= false;
 vpu_exch.m_to_s.vpu = tlNo;
-for(int i=0; i<VPU_COUNT; i++)
-  {
-  vpu_exchN[i].m_to_s.vpu = tlNo;
-  }
 }
 /*---------------------------------------------------------------------------*/
 // сброс параметров подключенного ВПУ
@@ -628,7 +648,15 @@ static void ResetStrSlave(void)
 memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
 vpu_exch.s_to_m.vpu = tlNo;
 }
-//------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------*/
+// полный сбросс ВПУ
+void allResetVPU(void)
+{
+ResetStrMaster();
+ResetStrSlave();
+memset(&dataVpu,0,sizeof(dataVpu));
+}
+/*---------------------------------------------------------------------------*/
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
@@ -638,22 +666,25 @@ static void task_VPU_func(void* param)
 
   for (;;)
     {
+    // интервал 100мс.
     tn_task_sleep(VPU_REFRESH_INTERVAL);
-    //for (int i=0; i<VPU_COUNT; i++)
-    //{
-    //Switch_VPU_Context(i);
+    vpu_exch.m_to_s.statusNet = getStatusSURD();  //retNetworkOK(); // статус СУРД
     Type_STATUS_VPU answer = DataExchange();      // опрос ВПУ
-    vpu_exch.m_to_s.statusNet = retNetworkOK(); // статус сети
+    //ждем результатов от DataExchange
+    if(answer==tlNo){
+      continue;
+      }
     // ВПУ подключен, отвечает
     if(answer==tlEnd){//опрос закончен можно обновить статусы
       fStatus = Null;
-      if(vpu_exch.m_to_s.statusNet){ // status net OK
+      if(vpu_exch.m_to_s.statusNet){ // status SURD OK
         UpdateSatus();
         VPU_LOGIC();
         }else{ // all clear mode AUTO
         ClearStatusButtonLed();
-        DK_VPU_undo();
+        setPlanMode(); // exit to PLAN
         }
+      continue;
       }// end stat==tlEnd
     // ВПУ не подключен или ошибка опроса
     if(answer==tlError){
@@ -670,17 +701,19 @@ static void task_VPU_func(void* param)
           if(vpu_exch.m_to_s.vpuOn){ // включен, вызывает фазы
             DK_Phase_Call(); // вызываем фазы
             }else{
-            DK_VPU_undo();   // возвращаемся в план
+            fStatus=Two;
             }
         }else{ // сети нет, отключаем светодиоды и переходим на план
-        DK_VPU_undo(); // возвращаемся в план
+        fStatus=Two;
         }
       }
-    //}
-    // сохраним контекст последнего
-    //Switch_VPU_Context(VPU_COUNT-1);
+    // ошибки чистим структуру и выходим
+    if(fStatus==Two){
+      fStatus=Null;
+      ClearStatusButtonLed();
+      setPlanMode(); // exit to PLAN
+      }
     }
-
 }
 //------------------------------------------------------------------------------
 /*

@@ -46,6 +46,8 @@ typedef struct _VPU_{
   int           bOnIndx;  //индекс нажатой кнопки
   BOOL          RY;       //Флаг ручного управления
   BOOL          myRY;     //ручное управление - мы рулим
+  BOOL          fixBut;
+  BOOL          fsetPlan;
 }TVPU;
 #pragma pack(pop)
 extern TVPU dataVpu;
@@ -101,15 +103,16 @@ typedef struct{
 } VPU_EXCHANGE;
 //////////////
 extern VPU_EXCHANGE  vpu_exch;
-extern int           cur_vpu; //номер текущего ВПУ
-extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
-extern TVPU          dataVpuN[VPU_COUNT];
+//extern int           cur_vpu; //номер текущего ВПУ
+//extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
+//extern TVPU          dataVpuN[VPU_COUNT];
 /*external functions*/
 void vpu_init();   //эта функция вызываеться из модуля main.c в функции static void startup() TN_kernel
 void uart1_int_handler(); //эта функция вызываеться из модуля tn_user.c в функции void hw_uart1_int_handler()обработчит прерываний от uart
 //const TVPU *retDateVPU(void);
 void updateCurrentDatePhase(const BYTE stNet,const BYTE idDk,const BYTE vpuOn,
                             const BYTE vpuST); // состояние VPU
+void setPlanMode(void);   // вернуться в режим ПЛАН
 BYTE retRequestsVPU(void);// ВПУ запросы
 Type_STATUS_VPU retStateVPU(void);
 BYTE retOnVPU(void);

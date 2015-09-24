@@ -372,7 +372,7 @@ static void task_cmd_LED_func(void* param)
 BOOL retAnswerVPU(void)
 {
 static BYTE stat = Null;
-if(retNetworkOK()){// проверки статуса соединения свех ДК
+if(getStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
   // забираем данные c ВПУ мастер
   vir_vpu.vpu[0].id = 0;
   vir_vpu.vpu[0].vpuOn = retOnVPU();
@@ -391,31 +391,49 @@ if(retNetworkOK()){// проверки статуса соединения свех ДК
         }
       }
     }
-    else if(stat==One) // работа активного ВПУ
-      {
-       if(vir_vpu.vpu[vir_vpu.active].vpuOn){ // ВПУ еще активет?
-         // здесь надо запустить таймер на залипание фазы
-         // установить фазы для мастера
-         updateCurrentDatePhase(true,vir_vpu.vpu[vir_vpu.active].id,true,
+  else if(stat==One) // работа активного ВПУ
+    {
+    if(vir_vpu.vpu[vir_vpu.active].vpuOn){ // ВПУ еще активет?
+       // здесь надо запустить таймер на залипание фазы
+       // установить фазы для мастера
+       updateCurrentDatePhase(true,vir_vpu.vpu[vir_vpu.active].id,true,
                                 vir_vpu.vpu[vir_vpu.active].phase);
-         if(vir_vpu.active){ // управляет не мастер
+       if(vir_vpu.active){ // управляет не мастер
           setStatusLed(vir_vpu.vpu[vir_vpu.active].stLED);
           }
-         return true;
-        }
-      }
+       }else{
+       stat = Null;
+       vir_vpu.vpu[vir_vpu.active].phase = tlNo;
+       updateCurrentDatePhase(true, vir_vpu.vpu[vir_vpu.active].id,
+                              false,vir_vpu.vpu[vir_vpu.active].phase);
+       if(vir_vpu.active){ // управляет не мастер
+          setStatusLed(vir_vpu.vpu[vir_vpu.active].stLED);
+          }
+       }
+    return true;
+    }
+  // выходим переключая режим
+  setPlanMode(); // Если был включен ВПУ -> режим ПЛАН
+  return false;
   }
-//memset(&vir_vpu,0,sizeof(vir_vpu));
-// сбросить фазы для мастера
-updateCurrentDatePhase(false,0,false,tlNo);
+// попадаем при ощибке в СУРД, и переходим в режим ПЛАН
+setPlanMode(); // Если был включен ВПУ -> режим ПЛАН
+memset(&vir_vpu,NULL,sizeof(vir_vpu)); // чистим всю структуру
 stat = Null; // сбросс сотояний
 return false;
 }
 /* переключение на OS and AUTO -----------------------------------------------*/
 BOOL retModeNoPolling(void)
 {
+// установка флага ДК
+if(DK[CUR_DK].CUR.source==ALARM)setStatusDK(false);
+                            else setStatusDK(true);
+// установка флага СУРД
+if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT)||(DK[CUR_DK].tumblerAUTO)||
+   (!getStatusDK())||(!retNetworkOK()))setStatusSURD(false);
+                                  else setStatusSURD(true);
 // нет режима программирования и не включен режим авто
-if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT)||(DK[CUR_DK].AUTO)){
+if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT)||(DK[CUR_DK].tumblerAUTO)){
   clearStatusDk();
   flagClaerNetwork();
   return true;
@@ -437,7 +455,7 @@ if(typeCmd==SET_STATUS){
   const TPROJECT *prg = retPointPROJECT();// данные по проекту
   const long idp = retCRC32();
   const long passw =prg->surd.Pass;  // получить пароль
-  const BOOL stnet = retNetworkOK(); // получить сетевой статус
+  const BOOL stnet = getStatusSURD(); // получить статус СУРД
   const long sdnet = retStatusNetDk();
 
   snprintf(pStr,leng,
@@ -457,7 +475,7 @@ if(typeCmd==SET_PHASE){
     const long id = vir_vpu.active;// ДК с включенным ВПУ
     const long idp = retCRC32();
     const long passw = prg->surd.Pass;
-    const BOOL stnet = retNetworkOK(); // получить сетевой статус
+    const BOOL stnet = getStatusSURD(); // получить статус СУРД
     const long sdnet = retStatusNetDk();
     const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
@@ -588,16 +606,23 @@ Type_Return slaveDk(const TPROJECT *ret)
 static BYTE stepSlave = Null,countTime = 0,countOk = 0,countError = 0;
 static BOOL fMessageErr = false,fMessageOk = false;
 
-if(++countTime>20){ // 2S delay
-  countTime = 0;
-  switch(stepSlave)
-    {
-    case Null:
-      clearStatusDk();
-      stepSlave = One;
-      return retNull;
-    case One:
-      if(getAllDk()){ // ДК в сети
+switch(stepSlave)
+  {
+  case Null:
+    clearStatusDk();
+    stepSlave = One;
+  case One: // Ждем 2 сек и проверка на ОС
+    if(retModeNoPolling())return retNull; // включили ОС, выходим
+    if(++countTime>20){//2S время опроса всех ДК в сети
+        countTime = 0;
+        stepSlave = Two;
+        }
+    return retNull;
+  case Two: // проверка СУРД, отключение ВПУ
+    if(!getStatusSURD()){setPlanMode();}
+    stepSlave = Three;
+  case Three: // проверка ДК в сети?
+    if(getAllDk()){ // ДК в сети
         flagSetNetwork(true); // установить статус сети
         if(++countOk>3){
           countOk = 0;
@@ -614,11 +639,9 @@ if(++countTime>20){ // 2S delay
         }
       stepSlave = Null;
       return retOk;
-    default:stepSlave = Null;
-      return retError;
-    }
+  default:stepSlave = Null;
+    return retError;
   }
-return retNull;
 }
 /*запускаем машину на опрос---------------------------------------------------*/
 static void PollingDkLine(const TPROJECT *ret)
@@ -767,8 +790,39 @@ static BOOL ip_security_check(struct ip_addr* srv_addr)
     return g_security_ipaddr.addr == srv_addr->addr;
 }
 /*----------------------------------------------------------------------------*/
+// Статус ДК
+BOOL getStatusDK(void)
+{
+return (BOOL)DK[CUR_DK].StatusDK;
+}
+// установить статус
+void setStatusDK(const BOOL flag)
+{
+DK[CUR_DK].StatusDK = flag;
+}
+// очистить статус
+void clearStatusDK(void)
+{
+DK[CUR_DK].StatusDK = NULL;
+}
+/*----------------------------------------------------------------------------*/
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
+// статус СУРД
+BOOL getStatusSURD(void)
+{
+return (BOOL)DK[CUR_DK].StatusSurd.StatusSURD;
+}
+// установить статус СУРД
+void setStatusSURD(const BOOL flag)
+{
+DK[CUR_DK].StatusSurd.StatusSURD = flag;
+}
+// очистить статус СУРД
+void clearStatusSURD(void)
+{
+DK[CUR_DK].StatusSurd.StatusSURD = NULL;
+}
 // проверка все ДК в сети
 BOOL retNetworkOK(void)//network
 {

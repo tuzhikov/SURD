@@ -122,9 +122,9 @@ if(strcmp(argv[6],"SD:")==0){
   sscanf(argv[7],"%u",&fSd);
   }
 // установить сетевые статусы для slave
-checkSlaveMessageDk(idp,pass,fSn,fSd);
-// сбросить ВПУ
-updateCurrentDatePhase(false,0,false,tlNo);
+if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
+  setPlanMode(); // ВПУ off.  в режиме опроса
+  }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
 }
@@ -1535,10 +1535,19 @@ if(DK[curr_dk].CUR.source==SERVICE) strcat(buf,"SERVICE");
 if(DK[curr_dk].CUR.source==VPU)     strcat(buf,"VPU");
 if(DK[curr_dk].CUR.source==TVP)     strcat(buf,"TVP");
 if(DK[curr_dk].CUR.source==PLAN)    strcat(buf,"PLAN");
+// add status DK
+strcat(buf," STATUS=");
+if(getStatusDK())strcat(buf,"OK");
+            else strcat(buf,"NO");
 // add status SURD
-strcat(buf," SURDNET=");
+strcat(buf," SURD=");
+if(getStatusSURD())strcat(buf,"OK");
+              else strcat(buf,"NO");
+// add status net
+strcat(buf," NET=");
 if(retNetworkOK())strcat(buf,"OK");
              else strcat(buf,"NO");
+
 // add time left
 char tmpbuff[30];
 const long timeleft = DK[curr_dk].control.len;

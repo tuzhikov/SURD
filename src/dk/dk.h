@@ -145,6 +145,7 @@ typedef struct{
   DWORD sendStatusDK;
   DWORD StatusDK;      // мах ДК 32
   BYTE  NetworkStatus;
+  BYTE  StatusSURD;
   //BYTE  CountRequests;//
 }STATUS_SURD;
 // Структура - ДК
@@ -158,6 +159,7 @@ typedef struct
        BYTE             OSSOFT;  // установлен программно ОС
        BYTE             YF; // нажат YF
        BYTE             AUTO; // сбросс IP по умолчанию
+       BYTE             StatusDK; // общее стостяние ДК (включем если GPS no,конфликты зеленого, красного)
        BYTE             test;         //тест-режим
        BYTE             test_init;    // флаг для очистки выводов
        BYTE             flash;     //начато обновление проекта-программа

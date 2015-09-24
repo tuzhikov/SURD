@@ -119,8 +119,8 @@ static void task_leds_func(void* param)
     //
     for (;;)
     {
-      if (DK[CUR_DK].CUR.source==ALARM)
-       {
+      DK_STATE stCurrent = DK[CUR_DK].CUR.source;
+      if(stCurrent==ALARM){
          //tn_task_sleep(50);
          if (b_err)
            pin_on(OPIN_ERR_LED);
@@ -128,12 +128,9 @@ static void task_leds_func(void* param)
            pin_off(OPIN_ERR_LED);
          ///
          b_err=!b_err;
-
-       }
-       else
-       {
+        }else{
          pin_on(OPIN_ERR_LED);
-       }
+        }
        ///////////////////////////
         hw_watchdog_clear();
         tn_task_sleep(900);
