@@ -142,11 +142,13 @@ typedef struct __CONTROLLER
 } CONTROLLER;
 // Статус SURD
 typedef struct{
-  DWORD sendStatusDK;
-  DWORD StatusDK;      // мах ДК 32
-  BYTE  NetworkStatus;
-  BYTE  StatusSURD;
-  //BYTE  CountRequests;//
+  DWORD sendStatusDK;   // переменная для передачи в сеть, копия tmpStatusNet
+  DWORD sendStatusSURD; // переменная для передачи в сеть, копия tmpStatusSURD
+  DWORD tmpStatusNet;// мах ДК 32 собирает инф. мастер о slave
+  DWORD tmpStatusSURD; // статус СУРД собирает "мастер"
+  BYTE  flagNetworkStatus; // сетевой статус общий после опроса ДК
+  BYTE  flagStatusSURD;    // статус СУРД, общий после опроса ДК
+  BYTE  flagLocalStatusSURD; //
 }STATUS_SURD;
 // Структура - ДК
 typedef struct
@@ -228,5 +230,9 @@ const TEXPRESSIONS *retPointExpUDZ(void);
 const TPROJECT *retPointPROJECT(void);
 // current ID DK
 BYTE retCurrenetID(void);
+// информации о текущем времени и фазе
+DWORD retTimePhase(void);
+DK_STATE retCurrentREQ(void);
+
 
 #endif

@@ -25,7 +25,7 @@ typedef enum _Type_LED_{ledOff=0x00,ledBlink1 = 0x01,ledBlink2 = 0x02,
                         ledOn = 0x03}TYPE_LED_SATUS;
 typedef enum _Type_BUTT_{bOff,bDown,bUp,bOn,bEnd}Type_BUTT;
 typedef enum _Type_BUT_{ButPhase1=0,ButPhase2=1,ButPhase3=2,ButPhase4=3,ButPhase5=4,ButPhase6=5,
-                        ButPhase7=6,ButPhase8=7,ButTlOff=8,ButAUTO=9,ButManual=10}Type_BUTTON;
+                        ButPhase7=6,ButPhase8=7,ButTlOff=8,ButAUTO=9,ButManual=10,END_BUTTON}Type_BUTTON;
 typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
                                tlPhase5=4,tlPhase6=5,tlPhase7=6,tlPhase8=7,
                                tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12,tlError=15}Type_STATUS_VPU;

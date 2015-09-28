@@ -372,7 +372,7 @@ static void task_cmd_LED_func(void* param)
 BOOL retAnswerVPU(void)
 {
 static BYTE stat = Null;
-if(getStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
+if(getFlagStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
   // забираем данные c ВПУ мастер
   vir_vpu.vpu[0].id = 0;
   vir_vpu.vpu[0].vpuOn = retOnVPU();
@@ -425,19 +425,25 @@ return false;
 /* переключение на OS and AUTO -----------------------------------------------*/
 BOOL retModeNoPolling(void)
 {
+const BOOL flagOS_AUTO_ON = DK[CUR_DK].OSHARD|DK[CUR_DK].OSSOFT|DK[CUR_DK].tumblerAUTO;
 // установка флага ДК
-if(DK[CUR_DK].CUR.source==ALARM)setStatusDK(false);
+if(DK[CUR_DK].CUR.source==ALARM) setStatusDK(false);
                             else setStatusDK(true);
 // установка флага СУРД
-if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT)||(DK[CUR_DK].tumblerAUTO)||
-   (!getStatusDK())||(!retNetworkOK()))setStatusSURD(false);
-                                  else setStatusSURD(true);
-// нет режима программирования и не включен режим авто
-if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT)||(DK[CUR_DK].tumblerAUTO)){
-  clearStatusDk();
-  flagClaerNetwork();
+if(flagOS_AUTO_ON||(!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(false);}
+                                                     else{setFlagLocalStatusSURD(true);}
+// нет режима программирования и не включен tumbler AUTO
+/*if(flagOS_AUTO_ON){
+  // сбросс флагов Net
+  clearStatusNet();
+  clearStatusNetSend();
+  claerFlagNetwork();
+  // сбросс флагов СУРД
+  clearStSurd();
+  clearStatusSurdSend();
+  clearFlagStatusSURD();
   return true;
-  }
+  }  */
 return false;
 }
 /*собрать запрос*/
@@ -455,19 +461,22 @@ if(typeCmd==SET_STATUS){
   const TPROJECT *prg = retPointPROJECT();// данные по проекту
   const long idp = retCRC32();
   const long passw =prg->surd.Pass;  // получить пароль
-  const BOOL stnet = getStatusSURD(); // получить статус СУРД
-  const long sdnet = retStatusNetDk();
+  const long stnet = retStatusSurdSend();// статус СУРД общий для сети
+  const long sdnet = retStatusNetSend(); // статус NET общий для сети
+  const long retTime = retTimePhase(); // остаток времени для работы фазы
 
   snprintf(pStr,leng,
         "setstatussurd\r"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
         "ST:    %u\r\n"
-        "SD:    %u\r\n",
+        "SD:    %u\r\n"
+        "TM:    %u\r\n",
         idp,
         passw,
         stnet,
-        sdnet);
+        sdnet,
+        retTime);
   return true;
   }
 if(typeCmd==SET_PHASE){
@@ -475,10 +484,11 @@ if(typeCmd==SET_PHASE){
     const long id = vir_vpu.active;// ДК с включенным ВПУ
     const long idp = retCRC32();
     const long passw = prg->surd.Pass;
-    const BOOL stnet = getStatusSURD(); // получить статус СУРД
-    const long sdnet = retStatusNetDk();
+    const BOOL stnet = retStatusSurdSend();// статус СУРД общий для сети
+    const long sdnet = retStatusNetSend(); // статус NET общий для сети
     const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
+    const long retTime = retTimePhase(); // остаток времени для работы фазы
 
     snprintf(pStr,leng,
         "setphaseudp\r"
@@ -488,14 +498,16 @@ if(typeCmd==SET_PHASE){
         "ST:    %u\r\n"
         "SD:    %u\r\n"
         "PHASE: %u\r\n"
-        "LED:   %u\r\n",
+        "LED:   %u\r\n"
+        "TM:    %u\r\n",
         id,
         idp,
         passw,
         stnet,
         sdnet,
         phase,
-        stLed);
+        stLed,
+        retTime);
   return true;
   }
 return false;
@@ -523,15 +535,19 @@ Type_Return masterDkStatus(const TPROJECT *ret)
 const WORD IPPORT = ret->surd.PORT;
 static char BuffCommand[200];
 static int stepMaster = Null;
-static BYTE indeDk = 1,countsend,countmessageOk = 0,countmessageErr = 0; // счет со второго ДК
-struct ip_addr ipaddr;
+static BYTE indeDk = 1,countsend=0;// счет indeDk со второго ДК
+static BYTE countmessageOk = 0,countmessageErr = 0;
+static BYTE countSrdOk=0,countSrdError=0;
 static BOOL fMessageErr = false,fMessageOk = false;
+static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
+struct ip_addr ipaddr;
 
 switch(stepMaster)
   {
   case Null: //сбросс
     clearStatusOneDk(indeDk);// нулим
-    setStatusOneDk(0); // status master
+    clearStSurdOneDk(indeDk);// нулим
+    setStatusOneDk(0,getFlagStatusSURD()); // status master, статус СУРД
     countsend =0;
     if(retAnswerVPU())
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
@@ -558,23 +574,42 @@ switch(stepMaster)
       stepMaster = Three;return retError;
       }
     return retOk;
-  case Three: // установить сетевой статус
+  case Three:
+    // все ДК в сети
     if(getAllDk()){
-      flagSetNetwork(true);
-      setStatusNetDk(retStatusDk());
+      setFlagNetwork(true);
+      setStatusNetSend(retStatusNet());
       if(++countmessageOk>5){
         countmessageErr = 0;
         fMessageErr = false;
         if(!fMessageOk){Event_Push_Str("SUCCESS:Все ДК в сети");fMessageOk = true;}
         }
       }else{
-      flagSetNetwork(false);
-      setStatusNetDk(retStatusDk());
+      setFlagNetwork(false);
+      setStatusNetSend(retStatusNet());
       if(++countmessageErr>5){
         countmessageOk  =0;
         fMessageOk = false;
         if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
         }
+      }
+    // все могут работать в СУРД
+    if(getAllSURD()){
+      setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
+      setFlagStatusSURD(true);     // установить статус сети
+      if(++countSrdOk>3){
+          countSrdOk = 0;
+          fMessageErrSrd = false;
+          if(!fMessageOkSrd){Event_Push_Str("SUCCESS: СУРД ОК");fMessageOkSrd = true;}
+          }
+      }else{
+      setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
+      setFlagStatusSURD(false);   // уберем флаг СУРД по сети
+      if(++countSrdError>3){
+          countSrdError = 0;
+          fMessageOkSrd = false;
+          if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
+          }
       }
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
@@ -603,13 +638,17 @@ switch(stepMaster)
 /*slave DK -------------------------------------------------------------------*/
 Type_Return slaveDk(const TPROJECT *ret)
 {
-static BYTE stepSlave = Null,countTime = 0,countOk = 0,countError = 0;
+static BYTE stepSlave = Null,countTime = 0;
+static BYTE countOk = 0,countError = 0;
+static BYTE countSrdOk = 0,countSrdError = 0;
 static BOOL fMessageErr = false,fMessageOk = false;
+static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
 
 switch(stepSlave)
   {
   case Null:
-    clearStatusDk();
+    clearStatusNet();
+    clearStSurd();
     stepSlave = One;
   case One: // Ждем 2 сек и проверка на ОС
     if(retModeNoPolling())return retNull; // включили ОС, выходим
@@ -619,22 +658,38 @@ switch(stepSlave)
         }
     return retNull;
   case Two: // проверка СУРД, отключение ВПУ
-    if(!getStatusSURD()){setPlanMode();}
+    if(!getFlagStatusSURD()){setPlanMode();}
     stepSlave = Three;
   case Three: // проверка ДК в сети?
     if(getAllDk()){ // ДК в сети
-        flagSetNetwork(true); // установить статус сети
+        setFlagNetwork(true); // установить статус сети
         if(++countOk>3){
           countOk = 0;
           fMessageErr = false;
           if(!fMessageOk){Event_Push_Str("SUCCESS: Все ДК в сети");fMessageOk = true;}
           }
         }else{
-        flagSetNetwork(false); // установить статус сети
+        setFlagNetwork(false); // установить статус сети
         if(++countError>3){
           countError = 0;
           fMessageOk = false;
           if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
+          }
+        }
+      // все могут работать в СУРД
+      if(getAllSURD()){
+        setFlagStatusSURD(true);  // установим флаг СУРД по сети
+        if(++countSrdOk>3){
+          countSrdOk = 0;
+          fMessageErrSrd = false;
+          if(!fMessageOkSrd){Event_Push_Str("SUCCESS: СУРД ОК");fMessageOkSrd = true;}
+          }
+        }else{
+        setFlagStatusSURD(false); // уберем флаг СУРД по сети
+        if(++countSrdError>3){
+          countSrdError = 0;
+          fMessageOkSrd = false;
+          if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
         }
       stepSlave = Null;
@@ -808,43 +863,94 @@ DK[CUR_DK].StatusDK = NULL;
 /*----------------------------------------------------------------------------*/
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
-// статус СУРД
-BOOL getStatusSURD(void)
+// статус СУРД сетевой
+BOOL getFlagStatusSURD(void)
 {
-return (BOOL)DK[CUR_DK].StatusSurd.StatusSURD;
+return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
 }
 // установить статус СУРД
-void setStatusSURD(const BOOL flag)
+void setFlagStatusSURD(const BOOL flag)
 {
-DK[CUR_DK].StatusSurd.StatusSURD = flag;
+DK[CUR_DK].StatusSurd.flagStatusSURD = flag;
 }
 // очистить статус СУРД
-void clearStatusSURD(void)
+void clearFlagStatusSURD(void)
 {
-DK[CUR_DK].StatusSurd.StatusSURD = NULL;
+DK[CUR_DK].StatusSurd.flagStatusSURD = NULL;
 }
+/* -------------------------статус СУРД локально------------------------------*/
+// установить
+void setFlagLocalStatusSURD(const BOOL flag)
+{
+DK[CUR_DK].StatusSurd.flagLocalStatusSURD = flag;
+}
+// прочитать
+BOOL getFlagLocalStatusSURD(void)
+{
+return (BOOL)DK[CUR_DK].StatusSurd.flagLocalStatusSURD;
+}
+/*----------------------------------------------------------------------------*/
 // проверка все ДК в сети
-BOOL retNetworkOK(void)//network
+BOOL getFlagNetwork(void)//network
 {
-return (BOOL)DK[CUR_DK].StatusSurd.NetworkStatus;
+return (BOOL)DK[CUR_DK].StatusSurd.flagNetworkStatus;
 }
-/*----------------------------------------------------------------------------*/
 // clear flag net
-void flagClaerNetwork(void)
+void claerFlagNetwork(void)
 {
-DK[CUR_DK].StatusSurd.NetworkStatus = NULL;
+DK[CUR_DK].StatusSurd.flagNetworkStatus = NULL;
+}
+// set flag net
+void setFlagNetwork(const BOOL flag)
+{
+DK[CUR_DK].StatusSurd.flagNetworkStatus = flag;
 }
 /*----------------------------------------------------------------------------*/
-// set flag net
-void flagSetNetwork(const BOOL flag)
+// запросить статус One DK
+BOOL getStSurdOneDk(const BYTE nDk)
 {
-DK[CUR_DK].StatusSurd.NetworkStatus = flag;
+return (BOOL)(DK[CUR_DK].StatusSurd.tmpStatusSURD)&(1<<nDk);
+}
+// сбрость статус One ДК
+void clearStSurdOneDk(const BYTE nDk)
+{
+DK[CUR_DK].StatusSurd.tmpStatusSURD&=~(1<<nDk);
+}
+// очистить весь статус all DK
+void clearStSurd(void)
+{
+DK[CUR_DK].StatusSurd.tmpStatusSURD=NULL;
+}
+// return status all DK
+DWORD retStSurd(void)
+{
+return DK[CUR_DK].StatusSurd.tmpStatusSURD;
+}
+// set all status surd
+void setStSurd(const DWORD st)
+{
+DK[CUR_DK].StatusSurd.tmpStatusSURD = st;
+}
+// проверить все ДК в СУРД
+BOOL getAllSURD(void)
+{
+const int maxDk = PROJ[CUR_DK].maxDK;
+
+for(int i=0;i<maxDk;i++)
+  {
+  if(PROJ[CUR_DK].surd.ID_DK_CUR==i){// это наш id
+    if(getFlagLocalStatusSURD())DK[CUR_DK].StatusSurd.tmpStatusSURD|=(1<<i);
+                           else DK[CUR_DK].StatusSurd.tmpStatusSURD&=~(1<<i);
+    }
+  if((DK[CUR_DK].StatusSurd.tmpStatusSURD&(1<<i))==0)return false; // ДК не в СУРД
+  }
+return true;
 }
 /*----------------------------------------------------------------------------*/
 // проверить все ДК на связи.
 BOOL getAllDk(void)
 {
-const DWORD sattusDk = DK[CUR_DK].StatusSurd.StatusDK;
+const DWORD sattusDk = DK[CUR_DK].StatusSurd.tmpStatusNet;
 const int maxDk = PROJ[CUR_DK].maxDK;
 
 for(int i=0;i<maxDk;i++)
@@ -854,63 +960,82 @@ for(int i=0;i<maxDk;i++)
   }
 return true;
 }
-/*----------------------------------------------------------------------------*/
-// установть новый статус ДК
-void setStatusOneDk(const BYTE nDk)
+// установть новый статус One ДК
+void setStatusOneDk(const BYTE nDk,const BYTE sSurd)
 {
-DK[CUR_DK].StatusSurd.StatusDK|=1<<nDk;
+DK[CUR_DK].StatusSurd.tmpStatusNet|=1<<nDk; //статус NET ДК
+if(sSurd)DK[CUR_DK].StatusSurd.tmpStatusSURD|=1<<nDk; // статус СУРД для этого ДК
 }
-/*----------------------------------------------------------------------------*/
-// запросить статус
+// запросить статус One DK
 BOOL getStatusOneDk(const BYTE nDk)
 {
-return (BOOL)(DK[CUR_DK].StatusSurd.StatusDK)&(1<<nDk);
+return (BOOL)(DK[CUR_DK].StatusSurd.tmpStatusNet)&(1<<nDk);
 }
-/*----------------------------------------------------------------------------*/
-// сбрость статус ДК
+// сбрость статус One ДК
 void clearStatusOneDk(const BYTE nDk)
 {
-DK[CUR_DK].StatusSurd.StatusDK&=~(1<<nDk);
+DK[CUR_DK].StatusSurd.tmpStatusNet&=~(1<<nDk);
 }
-/*----------------------------------------------------------------------------*/
-// очистить весь статус
-void clearStatusDk(void)
+// очистить весь статус all DK
+void clearStatusNet(void)
 {
-DK[CUR_DK].StatusSurd.StatusDK=NULL;
+DK[CUR_DK].StatusSurd.tmpStatusNet=NULL;
 }
-/*----------------------------------------------------------------------------*/
-// return status
-DWORD retStatusDk(void)
+// return status all DK
+DWORD retStatusNet(void)
 {
-return DK[CUR_DK].StatusSurd.StatusDK;
+return DK[CUR_DK].StatusSurd.tmpStatusNet;
 }
-/*----------------------------------------------------------------------------*/
 // set all status surd
-void setStatusDk(DWORD st)
+void setStatusNet(DWORD st)
 {
-DK[CUR_DK].StatusSurd.StatusDK = st;
+DK[CUR_DK].StatusSurd.tmpStatusNet = st;
 }
 /*----------------------------------------------------------------------------*/
-DWORD retStatusNetDk(void)
+// word send to UDP передаем по сети
+DWORD retStatusNetSend(void)
 {
 return DK[CUR_DK].StatusSurd.sendStatusDK;
 }
-/*----------------------------------------------------------------------------*/
-void  setStatusNetDk(DWORD st)
+void  setStatusNetSend(DWORD st)
 {
 DK[CUR_DK].StatusSurd.sendStatusDK = st;
 }
+void clearStatusNetSend(void)
+{
+DK[CUR_DK].StatusSurd.sendStatusDK = 0;
+}
+/*----------------------------------------------------------------------------*/
+// word send to UDP передаем по сети статус СУРД
+DWORD retStatusSurdSend(void)
+{
+return DK[CUR_DK].StatusSurd.sendStatusSURD;
+}
+void  setStatusSurdSend(DWORD st)
+{
+DK[CUR_DK].StatusSurd.sendStatusSURD = st;
+}
+void clearStatusSurdSend(void)
+{
+DK[CUR_DK].StatusSurd.sendStatusSURD = 0;
+}
 /*----------------------------------------------------------------------------*/
 // "slave" проверяем запросы ДК от мастера и устанавливаем сетевой статус
-BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const BOOL stnet,const BOOL sdnet)
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,const DWORD sdnet)
 {
 const TPROJECT *prj = retPointPROJECT();
 const long idp_calc = retCRC32();//сравним  IDP
 if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(prj->surd.ID_DK_CUR){// это slave
-      flagSetNetwork(stnet); // установка флага всех ДК
-      setStatusDk(sdnet);  // флаг проверки
+      // Net
+      setStatusNet(sdnet);   // флаг проверки
+      if(getAllDk())setFlagNetwork(true);
+               else setFlagNetwork(false);
+      //СУРД
+      setStSurd(stnet);
+      if(getAllSURD())setFlagStatusSURD(true);
+                 else setFlagStatusSURD(false);
       return true;
       }
     }
@@ -918,10 +1043,11 @@ if(idp==idp_calc){
 return false;
 }
 /*----------------------------------------------------------------------------*/
-// "master" устанавливаем ответы от slav, добавлен статус ВПУ
+// "master" получает ответы от slav, добавлен статус ВПУ, статус СУРД
 BOOL checkMasterMessageDk(const BYTE id,
                           const DWORD pass,
                           const DWORD idp,
+                          const BYTE surdOn,
                           const BYTE vpuOn,
                           const BYTE vpuPhase,
                           const WORD stled)
@@ -934,7 +1060,7 @@ if(idp==idp_calc){// проект наш
   if(pass==prj->surd.Pass){
     if(id<prj->maxDK){
       if(prj->surd.ID_DK_CUR==0){ //DK master
-        setStatusOneDk(id);//дк ответил
+        setStatusOneDk(id,surdOn);//дк ответил, установили статус Net и СУРД
         vir_vpu.vpu[id].id = id;
         vir_vpu.vpu[id].vpuOn = vpuOn;
         vir_vpu.vpu[id].phase = vpuPhase;

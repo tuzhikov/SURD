@@ -492,7 +492,7 @@ static void Check_LET(void)
         //
         if (reboot_tryes==0)
           return;
-        ///////
+        //
         GetTime_DS1390(&time);
         //
         cur_time.tm_hour = time.hour;
@@ -501,9 +501,9 @@ static void Check_LET(void)
         cur_time.tm_sec = time.sec;
         cur_time.tm_mon = time.month;
         cur_time.tm_year = time.year;
-        ///////////////
+        //
         int i_sec = Seconds_Between(&L_ERR_TIME, &cur_time);
-          if (i_sec > PROJ[CUR_DK].guard.time_clear*60)
+        if(i_sec > PROJ[CUR_DK].guard.time_clear*60)
             reboot_tryes=0;
 
 }

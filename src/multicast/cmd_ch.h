@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32  // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     15  // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     17  // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 #define MAX_VIR_VPU     32
@@ -61,24 +61,40 @@ void        get_cmd_ch_ip(struct ip_addr* ipaddr);
 BOOL getStatusDK(void);
 void setStatusDK(const BOOL flag);
 void clearStatusDK(void);
-BOOL getStatusSURD(void);
-void setStatusSURD(const BOOL flag);
-void clearStatusSURD(void);
-DWORD retStatusNetDk(void);
-void  setStatusNetDk(DWORD st);
-DWORD retStatusDk(void);
-void setStatusDk(DWORD st);
-void setStatusOneDk(const BYTE nDk);
+DWORD retStatusNetSend(void);
+void  setStatusNetSend(DWORD st);
+DWORD retStatusNet(void);
+void setStatusNet(DWORD st);
+void setStatusOneDk(const BYTE nDk,const BYTE sSurd);
 BOOL getStatusOneDk(const BYTE nDk);
 void clearStatusOneDk(const BYTE nDk);
 BOOL getAllDk(void);
-BOOL retNetworkOK(void);
-void flagClaerNetwork(void);
-void flagSetNetwork(const BOOL flag);
-void clearStatusDk(void);
-BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,
-                          const DWORD idp,const BYTE vpuOn,
-                          const BYTE vpuPhase,const WORD stled);
-BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const BOOL stnet,const BOOL sdnet);
+BOOL getFlagNetwork(void);
+void claerFlagNetwork(void);
+void setFlagNetwork(const BOOL flag);
+//
+BOOL getAllSURD(void);
+DWORD retStatusSurdSend(void);
+void  setStatusSurdSend(DWORD st);
+void clearStSurd(void);
+DWORD retStSurd(void);
+void setStSurd(DWORD st);
+BOOL getStSurdOneDk(const BYTE nDk);
+void clearStSurdOneDk(const BYTE nDk);
+BOOL getFlagStatusSURD(void);
+void setFlagStatusSURD(const BOOL flag);
+void clearFlagStatusSURD(void);
+//
+void setFlagLocalStatusSURD(const BOOL flag);
+BOOL getFlagLocalStatusSURD(void);
+//
+void clearStatusNet(void);
+void clearStatusSurdSend(void);
+void clearStatusNetSend(void);
+BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,const DWORD idp,
+                          const BYTE surdOn,const BYTE vpuOn,const BYTE vpuPhase,
+                          const WORD stled);
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,
+                         const DWORD stnet,const DWORD sdnet);
 
 #endif // __CMD_CH_H__

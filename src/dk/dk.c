@@ -38,7 +38,7 @@ static bool Check_TVP_En(void);
 functions discrintion
 */
 /*----------------------------------------------------------------------------*/
-#define D_W_ENABLE
+//#define D_W_ENABLE
 // тестовый вывод сообщений по UDP
 void D_W(const char*s)
 {
@@ -47,7 +47,7 @@ void D_W(const char*s)
    #endif
 }
 //------------------------------------------------------------------------------
-#ifndef KURS_DK
+#ifndef KURS_DK  // не КУРС
 // обновить OLD
 unsigned short Update_STATES_VO()
 {
@@ -97,7 +97,7 @@ unsigned short Update_STATES(const bool blink,const bool fudzoff)
 return(fire_light);
 }
 //------------------------------------------------------------------------------
-//
+// считаем время и сравниваем, используеться для проверки RTC
 int Seconds_Between(SYSTEMTIME *tt, SYSTEMTIME *tl)
 {
         time_t tim, lim;
@@ -309,7 +309,7 @@ return DK[CUR_DK].PROJ->DaysPlans[day_plan].CalendTime[nPhase].BeginTimeWorks;
 bool TEST_STA(const STATE *sta, WORK_STATE  w_sta, BYTE prog, BYTE faza)
 {
         bool res=false;
-        ///
+        //
         if (sta->work == w_sta)
         switch (w_sta)
         {
@@ -319,14 +319,14 @@ bool TEST_STA(const STATE *sta, WORK_STATE  w_sta, BYTE prog, BYTE faza)
               res=true;
              break;
            }
-           /////
+           //
            case SINGLE_FAZA:
            {
              if (sta->faza == faza)
               res=true;
              break;
            }
-           /////
+           //
            case PROG_FAZA:
            {
              if (sta->prog == prog)
@@ -1456,7 +1456,9 @@ for (int i_dk=0; i_dk<dk_num; i_dk++)
   // исполнитель - фактически переключает фазы
   bool fudzon = CONTROL();
   //
-  fire_light = Update_STATES(false,fudzon);
+  #ifdef KURS_DK
+    fire_light = Update_STATES(false,fudzon);
+  #endif
   }
 //включить силовые выходы
 SET_OUTPUTS();
@@ -1537,4 +1539,15 @@ return &PROJ[CUR_DK];
 BYTE retCurrenetID(void)
 {
 return PROJ[CUR_DK].surd.ID_DK_CUR;
+}
+/*----------------------------------------------------------------------------*/
+// время окончание пром тактов или фазы
+DWORD retTimePhase(void)
+{
+return DK[CUR_DK].control.len;
+}
+//посмотреть текщий запрос
+DK_STATE retCurrentREQ(void)
+{
+return DK[CUR_DK].REQ.req[VPU].source;
 }

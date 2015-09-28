@@ -70,7 +70,9 @@ TVPU dataVpu;
 
 /*---------------------Local functions----------------------------------------*/
 static void ResetStrMaster(void);
-void DK_VPU_undo(void);
+static void ResetStrSlave(void);
+static void ClearStatusButtonLed(void);
+static void DK_VPU_undo(void);
 /*---------- Functions--------------------------------------------------------*/
 // переключает контекст ВПУ-пультов
 /*void Switch_VPU_Context(int vpu_new)
@@ -325,7 +327,7 @@ for(int i=0;i<MAX_BUTTON;i++)
 /*Clear status Button*/
 static void ClearStatusButtonLed(void)
 {
-  for(int i=0;i<MAX_BUTTON-1;i++)
+  for(int i=0;i<END_BUTTON;i++)
   {
     dataVpu.rButton[i].On=bOff;
     dataVpu.led[i].On = ledOff;
@@ -335,7 +337,7 @@ static void ClearStatusButtonLed(void)
 /*update the structure TVPU */
 // Обрабатываем нажатия клавиш
 // Только ОДна кнопка может быть нажата в текущий момент!
-static void UpdateSatus(void)
+static void UpdateSatusButton(void)
 {
   static int btStat = Null;
   // bOn может быть только у 1 Кнопки
@@ -344,7 +346,7 @@ static void UpdateSatus(void)
   int bUpIndx=0xFF;
   int bOnIndx=0xFF;
 // обрабатываем кнопки фаз только по условию
-if(((dataVpu.myRY)||(!dataVpu.RY))&&(checkJumpPhase())){
+if((dataVpu.myRY)&&(checkJumpPhase())){
   dataVpu.fixBut = false;
   // кнопка нажата
   for(int i=0;i<MAX_BUTTON_PHASE;i++)
@@ -380,7 +382,6 @@ if(((dataVpu.myRY)||(!dataVpu.RY))&&(checkJumpPhase())){
   if (dataVpu.bOnIndx!=0xFF)
     dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
 }
-
 // тригерный режим конопок РУ и АВТО
   if(btStat==Null){
     if(dataVpu.rButton[ButManual].On==bUp){
@@ -400,6 +401,11 @@ if(((dataVpu.myRY)||(!dataVpu.RY))&&(checkJumpPhase())){
       dataVpu.rButton[ButAUTO].On=bOff;
       dataVpu.rButton[ButManual].On=bOff;
       }
+     //был сбросс сотояния кнопок
+     if((dataVpu.rButton[ButAUTO].On==bOff)&&
+       (dataVpu.rButton[ButManual].On==bOff)){
+       btStat=Null;
+       }
     }
 }
 //------------------------------------------------------------------------------
@@ -461,7 +467,7 @@ static void Clear_STATE(STATE *sta)
   sta->spec_prog = SPEC_PROG_OC;
 }
 /*----------------------------------------------------------------------------*/
-void DK_VPU_undo(void)
+static void DK_VPU_undo(void)
 {
   Clear_STATE(&(DK[CUR_DK].REQ.req[VPU]));
 }
@@ -649,14 +655,6 @@ memset(&vpu_exch.s_to_m, 0,sizeof(vpu_exch.s_to_m));
 vpu_exch.s_to_m.vpu = tlNo;
 }
 /*---------------------------------------------------------------------------*/
-// полный сбросс ВПУ
-void allResetVPU(void)
-{
-ResetStrMaster();
-ResetStrSlave();
-memset(&dataVpu,0,sizeof(dataVpu));
-}
-/*---------------------------------------------------------------------------*/
 /* loop VPU*/ // все крутиться от этой функции
 static void task_VPU_func(void* param)
 {
@@ -668,8 +666,8 @@ static void task_VPU_func(void* param)
     {
     // интервал 100мс.
     tn_task_sleep(VPU_REFRESH_INTERVAL);
-    vpu_exch.m_to_s.statusNet = getStatusSURD();  //retNetworkOK(); // статус СУРД
-    Type_STATUS_VPU answer = DataExchange();      // опрос ВПУ
+    vpu_exch.m_to_s.statusNet = getFlagStatusSURD(); // статус СУРД
+    Type_STATUS_VPU answer = DataExchange();// опрос ВПУ
     //ждем результатов от DataExchange
     if(answer==tlNo){
       continue;
@@ -678,14 +676,13 @@ static void task_VPU_func(void* param)
     if(answer==tlEnd){//опрос закончен можно обновить статусы
       fStatus = Null;
       if(vpu_exch.m_to_s.statusNet){ // status SURD OK
-        UpdateSatus();
+        UpdateSatusButton();
         VPU_LOGIC();
+        continue;
         }else{ // all clear mode AUTO
-        ClearStatusButtonLed();
-        setPlanMode(); // exit to PLAN
+        fStatus=Two;
         }
-      continue;
-      }// end stat==tlEnd
+      }
     // ВПУ не подключен или ошибка опроса
     if(answer==tlError){
       if(vpu_exch.m_to_s.idDk!=PROJ[CUR_DK].surd.ID_DK_CUR){//это не наш ВПУ
@@ -707,11 +704,13 @@ static void task_VPU_func(void* param)
         fStatus=Two;
         }
       }
-    // ошибки чистим структуру и выходим
+    // ошибки, чистим структуру и выходим
     if(fStatus==Two){
       fStatus=Null;
-      ClearStatusButtonLed();
-      setPlanMode(); // exit to PLAN
+      ResetStrMaster();       // сбросс структуры управления ВПУ
+      ClearStatusButtonLed(); // сбросс кнопок и светодиодов
+      ResetStrSlave();        // сброс структуры опроса ВПУ.
+      setPlanMode();          // exit to PLAN
       }
     }
 }
@@ -909,6 +908,7 @@ return led;
 void setStatusLed(const WORD stLed)
 {
 const BYTE MASK = 0x03;
+
 dataVpu.led[ButPhase8].On = (TYPE_LED_SATUS)((stLed>>14)&MASK);
 dataVpu.led[ButPhase7].On = (TYPE_LED_SATUS)((stLed>>12)&MASK);
 dataVpu.led[ButPhase6].On = (TYPE_LED_SATUS)((stLed>>10)&MASK);
