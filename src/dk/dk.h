@@ -205,7 +205,7 @@ typedef struct
 /*----------------------------------------------------------------------------*/
 extern  TPROJECT  PROJ[DK_N];
 extern  BYTE  CUR_DK;   // важная переменная по свему проекту
-extern __DK   DK[DK_N];
+extern __DK DK[DK_N];
 extern BYTE   dk_num; //
 extern SYSTEMTIME   CT; // control time
 /*----------------------------------------------------------------------------*/

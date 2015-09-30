@@ -413,11 +413,11 @@ if(getFlagStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
     return true;
     }
   // выходим переключая режим
-  setPlanMode(); // Если был включен ВПУ -> режим ПЛАН
+  ReturnToWorkPlan(); // Если был включен ВПУ -> режим ПЛАН
   return false;
   }
 // попадаем при ощибке в СУРД, и переходим в режим ПЛАН
-setPlanMode(); // Если был включен ВПУ -> режим ПЛАН
+ReturnToWorkPlan(); // Если был включен ВПУ -> режим ПЛАН
 memset(&vir_vpu,NULL,sizeof(vir_vpu)); // чистим всю структуру
 stat = Null; // сбросс сотояний
 return false;
@@ -658,7 +658,7 @@ switch(stepSlave)
         }
     return retNull;
   case Two: // проверка СУРД, отключение ВПУ
-    if(!getFlagStatusSURD()){setPlanMode();}
+    if(!getFlagStatusSURD()){ReturnToWorkPlan();}
     stepSlave = Three;
   case Three: // проверка ДК в сети?
     if(getAllDk()){ // ДК в сети

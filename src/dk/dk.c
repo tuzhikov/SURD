@@ -22,7 +22,7 @@
 
 
 
-__DK   DK[DK_N];
+__DK DK[DK_N];
 TPROJECT     PROJ[DK_N];
 TPROGRAM     PROG_PLAN;
 BYTE   dk_num; //кол-во обнаруженных ДК

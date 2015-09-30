@@ -18,8 +18,9 @@
 #define ADR_VPU                     1
 #define MAX_VPU_FAZE                8
 #define VPU_COUNT                   1
+#define NO_EVENTS_BUTTON            0xFF
 
-typedef enum _Type_ANS_{ansNoAnsw=0x01,ansOk=0x02,ansErr=0x04}Type_ANS;
+typedef enum _Type_ANS_{ansNull=0x00,ansNoAnsw=0x01,ansOk=0x02,ansErr=0x04}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
 typedef enum _Type_LED_{ledOff=0x00,ledBlink1 = 0x01,ledBlink2 = 0x02,
                         ledOn = 0x03}TYPE_LED_SATUS;
@@ -85,7 +86,6 @@ typedef struct _VPU_COMMAND_{
   U8 (*setFunc)(void *p,U8 len);  // A pointer to the handling function
   U8 FlagEnd;
 }VPU_COMMAND;
-//////////
 // data exchange beetween master and slave
 typedef struct{
   // Статус сети //  0- OFF, 1- OK
@@ -101,24 +101,20 @@ typedef struct{
   MASTER_SLAVE_VPU   m_to_s; //Управление от мастера для slave
   MASTER_SLAVE_VPU   s_to_m; //Сигнализация от ВПУ slave
 } VPU_EXCHANGE;
-//////////////
+//
 extern VPU_EXCHANGE  vpu_exch;
-//extern int           cur_vpu; //номер текущего ВПУ
-//extern VPU_EXCHANGE  vpu_exchN[VPU_COUNT];
-//extern TVPU          dataVpuN[VPU_COUNT];
 /*external functions*/
 void vpu_init();   //эта функция вызываеться из модуля main.c в функции static void startup() TN_kernel
 void uart1_int_handler(); //эта функция вызываеться из модуля tn_user.c в функции void hw_uart1_int_handler()обработчит прерываний от uart
-//const TVPU *retDateVPU(void);
 void updateCurrentDatePhase(const BYTE stNet,const BYTE idDk,const BYTE vpuOn,
                             const BYTE vpuST); // состояние VPU
-void setPlanMode(void);   // вернуться в режим ПЛАН
-BYTE retRequestsVPU(void);// ВПУ запросы
+void ReturnToWorkPlan(void);  // вернуться в режим ПЛАН
+BYTE retRequestsVPU(void);    // ВПУ запросы
 Type_STATUS_VPU retStateVPU(void);
-BYTE retOnVPU(void);
 void setStatusLed(const WORD stLed);
+BYTE retOnVPU(void);
 WORD retStatusLed(void);
-// тектосвое состояние ВПУ
+// текcтовое состояние ВПУ
 void retPhaseToText(char *pStr,const BYTE phase);
 WORD retTextToPhase(char *pStr);
 

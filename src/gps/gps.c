@@ -295,7 +295,7 @@ BOOL Synk_TIME(void)
        return false;
      ///
      GPS_synk_flag=false;
-     //////////////
+     //проверка валидности
      if (gps_info.time_valid)
      {
 
@@ -382,11 +382,11 @@ switch(inEvent)
     fWr[ST_M_OK] = false;
     break;
   case ST_F_OK:
-    if(!fWr[ST_F_OK]){fWr[ST_F_OK] = true;Event_Push_Str("GPS/GLONASS время определил");}
+    //if(!fWr[ST_F_OK]){fWr[ST_F_OK] = true;Event_Push_Str("GPS/GLONASS время определил");}
     fWr[ST_F_NO] =false;
     break;
   case ST_F_NO:
-    if(!fWr[ST_F_NO]){fWr[ST_F_NO] = true;Event_Push_Str("GPS/GLONASS время потерял");}
+    //if(!fWr[ST_F_NO]){fWr[ST_F_NO] = true;Event_Push_Str("GPS/GLONASS время потерял");}
     fWr[ST_F_OK] = false;
     break;
   case ST_T_OK:
@@ -638,11 +638,8 @@ static void ProcessGPRMC(unsigned char *pData)
     #define MAXFIELD 10
     unsigned char pField[MAXFIELD];
 
-    //
     // Time
-    //
-    if (GPS_LED==0)
-     GPS_LED = 1;
+    if (GPS_LED==0)GPS_LED = 1;
     //
     if (GetField(pData, pField, 0, MAXFIELD))
     {

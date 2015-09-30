@@ -55,8 +55,8 @@ void Get_gps_info(GPS_INFO *gps);
 BOOL Get_GPS_valid(void);
 BOOL Send_Data_uart(const char *buf, unsigned char len);
 void GPS_PPS_int_handler(void);
-BOOL Get_GPS_Time(DS1390_TIME * time);
-BOOL Get_time_sync(void);
+//BOOL Get_GPS_Time(DS1390_TIME * time);
+//BOOL Get_time_sync(void);
 BOOL Synk_TIME(void);
 
 //extern unsigned char GPS_synk_flag;//=false;

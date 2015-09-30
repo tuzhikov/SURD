@@ -126,7 +126,7 @@ if(strcmp(argv[8],"TM:")==0){
   }
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
-  setPlanMode(); // ВПУ off.  в режиме опроса
+  ReturnToWorkPlan(); // ВПУ off.  в режиме опроса
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
