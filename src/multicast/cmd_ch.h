@@ -81,12 +81,12 @@ DWORD retStSurd(void);
 void setStSurd(DWORD st);
 BOOL getStSurdOneDk(const BYTE nDk);
 void clearStSurdOneDk(const BYTE nDk);
-BOOL getFlagStatusSURD(void);
-void setFlagStatusSURD(const BOOL flag);
+BYTE getFlagStatusSURD(void);
+void setFlagStatusSURD(const BYTE flag);
 void clearFlagStatusSURD(void);
 //
-void setFlagLocalStatusSURD(const BOOL flag);
-BOOL getFlagLocalStatusSURD(void);
+void setFlagLocalStatusSURD(const BYTE flag);
+BYTE getFlagLocalStatusSURD(void);
 //
 void clearStatusNet(void);
 void clearStatusSurdSend(void);

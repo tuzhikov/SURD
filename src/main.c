@@ -167,6 +167,8 @@ static void startup()
     unsigned char err = 0;
 
     init_hardware();
+    // Brown-Out Reset Control enabled
+    HWREG(SYSCTL_PBORCTL) = SYSCTL_BOR_RESET;
     dbg_init();
     dbg_print_app_ver();
     crc32_init();

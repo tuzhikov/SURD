@@ -18,7 +18,7 @@
 #define ADR_VPU                     1
 #define MAX_VPU_FAZE                8
 #define VPU_COUNT                   1
-#define NO_EVENTS_BUTTON            0xFF
+#define NO_EVENTS                   0xFF
 
 typedef enum _Type_ANS_{ansNull=0x00,ansNoAnsw=0x01,ansOk=0x02,ansErr=0x04}Type_ANS;
 typedef enum _Type_CMD_{cmdLed=0x01,cmdButtun=0x02,cmdLedSetup=0xF}Type_CMD;
@@ -27,9 +27,16 @@ typedef enum _Type_LED_{ledOff=0x00,ledBlink1 = 0x01,ledBlink2 = 0x02,
 typedef enum _Type_BUTT_{bOff,bDown,bUp,bOn,bEnd}Type_BUTT;
 typedef enum _Type_BUT_{ButPhase1=0,ButPhase2=1,ButPhase3=2,ButPhase4=3,ButPhase5=4,ButPhase6=5,
                         ButPhase7=6,ButPhase8=7,ButTlOff=8,ButAUTO=9,ButManual=10,END_BUTTON}Type_BUTTON;
-typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
+/*typedef enum _Type_STATUS_VPU_{tlPhase1=0,tlPhase2=1,tlPhase3=2,tlPhase4=3,
                                tlPhase5=4,tlPhase6=5,tlPhase7=6,tlPhase8=7,
-                               tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12,tlError=15}Type_STATUS_VPU;
+                               tlOS=8,tlAUTO=9,tlManual=10,tlEnd=11,tlNo=12,tlError=15}Type_STATUS_VPU;*/
+typedef enum _Type_STATUS_VPU_{
+  tlPhase1 = 0,tlPhase2 = 1,tlPhase3 = 2,tlPhase4 = 3,tlPhase5 = 4,tlPhase6 = 5,tlPhase7 = 6,tlPhase8 = 7,
+  tlPhase9 = 8,tlPhase10= 9,tlPhase11=10,tlPhase12=11,tlPhase13=12,tlPhase14=13,tlPhase15=14,tlPhase16=15,
+  tlPhase17=16,tlPhase18=17,tlPhase19=18,tlPhase20=19,tlPhase21=20,tlPhase22=21,tlPhase23=22,tlPhase24=23,
+  tlPhase25=24,tlPhase26=25,tlPhase27=26,tlPhase28=27,tlPhase29=28,tlPhase30=29,tlPhase31=30,tlPhase32=31,
+  tlOS=32,tlAUTO=33,tlManual=34,tlEnd=35,tlNo=36,tlError=37}Type_STATUS_VPU;
+
 #pragma pack(push)  /* push current alignment to stack */
 #pragma pack(1)
 typedef struct _VPU_BUTTON_{
@@ -44,11 +51,12 @@ typedef struct _VPU_{
   TVPU_BUTTON   rButton[MAX_BUTTON];
   TVPU_LED      rLed[MAX_LED];
   TVPU_LED      led[MAX_LED];
-  int           bOnIndx;  //индекс нажатой кнопки
+  int           bOnIndx;        //индекс нажатой кнопки
+  BYTE          currentPhase;   //текущая работающая фаза
+  BYTE          nextPhase;      //фаза следующая
+  BYTE          stepbt;         //
   BOOL          RY;       //Флаг ручного управления
   BOOL          myRY;     //ручное управление - мы рулим
-  BOOL          fixBut;
-  BOOL          fsetPlan;
 }TVPU;
 #pragma pack(pop)
 extern TVPU dataVpu;
@@ -115,7 +123,7 @@ void setStatusLed(const WORD stLed);
 BYTE retOnVPU(void);
 WORD retStatusLed(void);
 // текcтовое состояние ВПУ
-void retPhaseToText(char *pStr,const BYTE phase);
+void retPhaseToText(char *pStr,const BYTE leng,const BYTE phase);
 WORD retTextToPhase(char *pStr);
 
 #endif // __VPU_H__

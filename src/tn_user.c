@@ -138,9 +138,12 @@ void tn_fault_int_handler()
     }
     */
     asm("TST LR, #4");
-    //asm("ITE EQ");
-    //asm("MRSEQ R0, MSP");
-    //asm("MRSNE R0, PSP");
+    /*asm("ITE EQ");
+    asm("MRSEQ R0, MSP");
+    asm("MRSNE R0, PSP");*/
+     asm("ITE EQ \n"
+    "MRSEQ R0, MSP \n"
+    "MRSNE R0, PSP");
     asm("B fault_print");
 }
 

@@ -4,6 +4,7 @@
 *
 ******************************************************************************/
 #include <string.h>
+#include <stdio.h>
 #include "vpu.h"
 #include "crc16.h"
 #include "pins.h"
@@ -67,24 +68,9 @@ static void ClearStatusButtonPhase(void);
 *                               Functions
 */
 /*----------------------------------------------------------------------------*/
-// проверка перехода на новую фазу
-static BOOL checkJumpPhase(void)
-{
-if(PROG_FAZA == DK[CUR_DK].CUR.work){ // работаем в плане кнопки можно активировать
-  if(dataVpu.fixBut)return false;// кнопка активна
-  return true;
-  }else
-    if(SINGLE_FAZA == DK[CUR_DK].CUR.work){
-      if(dataVpu.fixBut)
-        return (DK[CUR_DK].REQ.req[VPU].faza==DK[CUR_DK].CUR.faza)? true:false;
-      }
-return true;
-}
-/*----------------------------------------------------------------------------*/
 // Обновляет структуру m_t_s для ВСЕх ВПУ
 static void update_m_t_s(MASTER_SLAVE_VPU *mts)
 {
-//текущий контекст
 memcpy(&vpu_exch.m_to_s, mts, sizeof(vpu_exch.m_to_s));
 }
 /*----------------------------------------------------------------------------*/
@@ -112,7 +98,8 @@ updateCurrentDatePhase(0,0,0,tlNo);
 // сбросс значений фазы структуры s_to_m
 vpu_exch.s_to_m.vpu = tlNo;
 // установить флаг перехода на
-dataVpu.fsetPlan  = true;
+dataVpu.nextPhase = NO_EVENTS;
+dataVpu.currentPhase = NO_EVENTS;
 }
 //------------------------------------------------------------------------------
 void vpu_init() // это все по инициализации UART и создаем поток tn_kernel
@@ -288,7 +275,7 @@ return lenght;
 /*Clear status Button phase*/
 static void ClearStatusButtonPhase(void)
 {
-dataVpu.bOnIndx=NO_EVENTS_BUTTON;
+dataVpu.bOnIndx=NO_EVENTS; // сбросс состояние кнопок
 for(int i=0;i<MAX_BUTTON_PHASE;i++)
     {
     dataVpu.rButton[i].On=bOff;
@@ -302,7 +289,7 @@ static void ClearStatusButton(void)
     {
     dataVpu.rButton[i].On=bOff;
     }
-  dataVpu.bOnIndx=NO_EVENTS_BUTTON; // сбрасываем все события по нажатой кнопке
+  dataVpu.bOnIndx=NO_EVENTS; // сбрасываем все события по нажатой кнопке
 }
 /*----------------------------------------------------------------------------*/
 /*Clear status LED Phase*/
@@ -444,22 +431,11 @@ Type_ANS DataExchange(void)
 }
 /*----------------------------------------------------------------------------*/
 // возвращает номер фазы по статусу ВПУ. 00xFF - если статус - не фаза
-int ret_FAZA_num(Type_STATUS_VPU vpu)
+static int retNumPhase(const Type_STATUS_VPU vpu)
 {
-  int ret_f=0xFF;
-  switch (vpu_exch.m_to_s.vpu)
-            {
-            case tlPhase1: ret_f=0; break;
-            case tlPhase2: ret_f=1; break;
-            case tlPhase3: ret_f=2; break;
-            case tlPhase4: ret_f=3; break;
-            case tlPhase5: ret_f=4; break;
-            case tlPhase6: ret_f=5; break;
-            case tlPhase7: ret_f=6; break;
-            case tlPhase8: ret_f=7; break;
-            default:break;
-            }
-  return(ret_f);
+int ret_f=0xFF;
+if(vpu<tlOS)ret_f=(int)vpu;
+return(ret_f);
 }
 /*----------------------------------------------------------------------------*/
 /*update the structure TVPU */
@@ -467,54 +443,66 @@ int ret_FAZA_num(Type_STATUS_VPU vpu)
 // Только Одна кнопка может быть нажата в текущий момент!
 static void updateSatusButton(void)
 {
-static WORD btStat = Null;// режимы работы кнопок РУ и АВТО
-// bUp,bOn может быть только у 1 Кнопки
-BYTE bUpIndx=0xFF;
-BYTE bOnIndx=0xFF;
+static BYTE btStat = Null;// режимы работы кнопок РУ и АВТО
+static BYTE btStep = Null;
+static BYTE countTime = 0; // increment 0.1S
 
+dataVpu.stepbt = btStep;
 // обрабатываем кнопки фаз только активного ВПУ
 if(dataVpu.myRY){
-  if(checkJumpPhase()){ // перешли на новую фазу?
-    dataVpu.fixBut = false;
-    // кнопка нажата
-    for(int i=0;i<MAX_BUTTON_PHASE;i++)
-      {
-      if(dataVpu.rButton[i].On==bUp) {
-        bUpIndx=i; break;
+
+  switch(btStep)
+    {
+    // переводим ДК в режим ВПУ
+    case Null:
+      if(PROG_FAZA == DK[CUR_DK].CUR.work){
+        dataVpu.nextPhase = DK[CUR_DK].CUR.prog_faza;//текущая фаза вызываем
         }
-      }
-    // кнопка зафиксирована
-    for(int i=0;i<MAX_BUTTON_PHASE;i++)
-      {
-      if(dataVpu.rButton[i].On==bOn) {
-        bOnIndx=i;
-        break;
+    case One:// кнопка нажата
+      for(int i=0;i<MAX_BUTTON_PHASE;i++)
+        {
+        if(dataVpu.rButton[i].On==bUp){
+          dataVpu.rButton[i].On = bOn;
+          // зафиксировали кнопку <status On>
+          dataVpu.bOnIndx = i;
+          btStep = Two;
+          break;
+          }
         }
-      }
-    //новые нажатые кнопочки фиксация
-    if(bUpIndx!=0xFF) {
-      bOnIndx=bUpIndx;
-      }
-    dataVpu.bOnIndx = bOnIndx;
-    // Чистим все
-    for(int i=0;i<MAX_BUTTON_PHASE;i++)
-      {
-      //LED Phase OFF
-      dataVpu.led[i].On=ledOff;
-      // Button phase OFF
-      if (dataVpu.rButton[i].On != bDown){
-        dataVpu.rButton[i].On=bOff;
+      break;
+    case Two:// delay 1 S
+      if(++countTime>10){
+        countTime=0;
+        if(PROG_FAZA == DK[CUR_DK].CUR.work)btStep = Three; // переход ПЛАН->ФАЗА (первый вызов в ВПУ)
+        if(SINGLE_FAZA == DK[CUR_DK].CUR.work)btStep = For; // переход ФАЗА->ФАЗА
         }
-      }
-    // восстанавливаем
-    if (dataVpu.bOnIndx!=0xFF){
-      dataVpu.rButton[dataVpu.bOnIndx].On=bOn;
-      dataVpu.fixBut = true; // фиксируем до обработки состояния
-      }
+      break;
+    case Three: //переход ПЛАН->ФАЗА
+      if((DK[CUR_DK].CUR.source==VPU)&&(SINGLE_FAZA == DK[CUR_DK].CUR.work)){
+        if(dataVpu.nextPhase==DK[CUR_DK].CUR.faza){
+          btStep = For;}
+        }
+      break;
+    case For: // переход ФАЗА->ФАЗА
+      // защита от зависания в этом шаге машины
+      if((DK[CUR_DK].CUR.source==PLAN)||(dataVpu.bOnIndx==0xFF)){btStep = Null;break;}
+      //отправляем на вызов фазы
+      dataVpu.nextPhase=dataVpu.bOnIndx;
+      // проверяем переход по фазам
+      //if(DK[CUR_DK].REQ.req[VPU].faza==DK[CUR_DK].CUR.faza){btStep = Five;}
+      if(dataVpu.nextPhase==DK[CUR_DK].CUR.faza){btStep = Five;}
+      break;
+    case Five:
+    default:
+      ClearStatusLedPhase();
+      ClearStatusButtonPhase();
+      btStep = One; // на опрос кнопок
+      break;
     }
   }else{
   // reset satus button phase
   ClearStatusButtonPhase();
+  btStep = Null;
   }
 // тригерный режим конопок РУ и АВТО
   if(btStat==Null){
@@ -598,9 +586,9 @@ if (vpu_exch.m_to_s.vpu==tlOS) {
   DK_VPU_OS();
   }
 // Фазы
-int fz_n = ret_FAZA_num(vpu_exch.m_to_s.vpu);
-if(fz_n!=0xFF){
-  DK_VPU_faza(fz_n);
+const int phase = retNumPhase(vpu_exch.m_to_s.vpu);
+if(phase!=0xFF){
+  DK_VPU_faza(phase);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -622,11 +610,11 @@ if(dataVpu.RY)
       dataVpu.myRY = (vpu_exch.m_to_s.idDk==PROJ[0].surd.ID_DK_CUR) ? true : false;
     else
       dataVpu.myRY = false;
-//определяем ВПУ-статус (нажатые кнопки)
-if(dataVpu.bOnIndx!=0xFF)
-  vpu_exch.s_to_m.vpu = (Type_STATUS_VPU)dataVpu.bOnIndx;
+//определяем ВПУ-статус (вызываемая фаза)
+if(dataVpu.nextPhase<tlOS) //реальная фаза
+  vpu_exch.s_to_m.vpu = (Type_STATUS_VPU)dataVpu.nextPhase;
   else
-  vpu_exch.s_to_m.vpu = tlNo; //нет нажатых кнопок
+  vpu_exch.s_to_m.vpu = tlNo;//не вызываем
 //Отображение LED
 showPhaseLED();
 showManualLED();
@@ -680,7 +668,7 @@ static void task_VPU_func(void* param)
     switch(stepVPU)
       {
       case Null:// активный ВПУ
-        if(!vpu_exch.m_to_s.statusNet){stepVPU = For; break;}
+        if(!vpu_exch.m_to_s.statusNet){stepVPU = Three; break;}
         if(answer&ansOk){
           updateSatusButton();
           VPU_LOGIC();
@@ -695,17 +683,20 @@ static void task_VPU_func(void* param)
             }
         break;
       case One: // пасcивный ВПУ выключен или не подключен
-        if(!vpu_exch.m_to_s.statusNet){stepVPU = For; break;}// сеть есть?
+        if(!vpu_exch.m_to_s.statusNet){stepVPU = Three; break;}// сеть есть?
         if(answer&ansOk){stepVPU = Null; break;} // включили ВПУ
         if(vpu_exch.m_to_s.vpuOn){DK_Phase_Call();}
                             else {stepVPU = For;}
         break;
+      case Three: // очистка через КК
+        //DK_RESTART();
+        stepVPU = For;
       case For: // очистка
-        ResetStrSlave();        // сброс структуры опроса ВПУ.
-        ResetStrMaster();       // сбросс структуры управления ВПУ
-        ClearStatusLed();       // сбросс светодиодов
-        ClearStatusButton();    // сбросс кнопок
-        ReturnToWorkPlan();     // return to PLAN
+        ResetStrSlave();         // сброс структуры опроса ВПУ.
+        ResetStrMaster();        // сбросс структуры управления ВПУ
+        ClearStatusLed();        // сбросс светодиодов
+        ClearStatusButton();     // сбросс кнопок
+        ReturnToWorkPlan();      // return to PLAN
         stepVPU = Five;
       case Five: // ни показывать LED пока не появиься статус СУРД
         if(vpu_exch.m_to_s.statusNet)stepVPU = Null;
@@ -812,12 +803,7 @@ if(*(data)==cmdButtun){ // command anwer 01| 02 02 00 00
      if(*data&maskButton[inMask++]){
         if(dataVpu.rButton[j].On==bOff)
           dataVpu.rButton[j].On = bDown;
-        //только для РУ
-        /*if (j==MAX_BUTTON-1)
-        if(dataVpu.rButton[j].On==bOn)
-          dataVpu.rButton[j].On = bEnd;*/
-      }
-      else{
+      }else{
         if(dataVpu.rButton[j].On==bDown)
            dataVpu.rButton[j].On = bUp;
         if(dataVpu.rButton[j].On==bEnd)
@@ -848,19 +834,47 @@ BYTE retRequestsVPU(void)
 return ((vpu_exch.s_to_m.vpuOn)&&(vpu_exch.s_to_m.vpu!=tlNo)); //РУ on, вызвана фаза
 }
 /*--------------------- return text status ----------------------------*/
-void retPhaseToText(char *pStr,const BYTE phase)
+void retPhaseToText(char *pStr,const BYTE leng,const BYTE phase)
 {
 const Type_STATUS_VPU status = (Type_STATUS_VPU)phase;
+/*if(status<tlOS){
+    snprintf(pStr,leng,"%u",phase);
+    return;
+    } */
 switch(status)
   {
-  case tlPhase1:strcpy(pStr,"1");return;
-  case tlPhase2:strcpy(pStr,"2");return;
-  case tlPhase3:strcpy(pStr,"3");return;
-  case tlPhase4:strcpy(pStr,"4");return;
-  case tlPhase5:strcpy(pStr,"5");return;
-  case tlPhase6:strcpy(pStr,"6");return;
-  case tlPhase7:strcpy(pStr,"7");return;
-  case tlPhase8:strcpy(pStr,"8");return;
+  case tlPhase1: strcpy(pStr,"1");return;
+  case tlPhase2: strcpy(pStr,"2");return;
+  case tlPhase3: strcpy(pStr,"3");return;
+  case tlPhase4: strcpy(pStr,"4");return;
+  case tlPhase5: strcpy(pStr,"5");return;
+  case tlPhase6: strcpy(pStr,"6");return;
+  case tlPhase7: strcpy(pStr,"7");return;
+  case tlPhase8: strcpy(pStr,"8");return;
+  case tlPhase9: strcpy(pStr,"9");return;
+  case tlPhase10:strcpy(pStr,"10");return;
+  case tlPhase11:strcpy(pStr,"11");return;
+  case tlPhase12:strcpy(pStr,"12");return;
+  case tlPhase13:strcpy(pStr,"13");return;
+  case tlPhase14:strcpy(pStr,"14");return;
+  case tlPhase15:strcpy(pStr,"15");return;
+  case tlPhase16:strcpy(pStr,"16");return;
+  case tlPhase17:strcpy(pStr,"17");return;
+  case tlPhase18:strcpy(pStr,"18");return;
+  case tlPhase19:strcpy(pStr,"19");return;
+  case tlPhase20:strcpy(pStr,"20");return;
+  case tlPhase21:strcpy(pStr,"21");return;
+  case tlPhase22:strcpy(pStr,"22");return;
+  case tlPhase23:strcpy(pStr,"23");return;
+  case tlPhase24:strcpy(pStr,"24");return;
+  case tlPhase25:strcpy(pStr,"25");return;
+  case tlPhase26:strcpy(pStr,"26");return;
+  case tlPhase27:strcpy(pStr,"27");return;
+  case tlPhase28:strcpy(pStr,"28");return;
+  case tlPhase29:strcpy(pStr,"29");return;
+  case tlPhase30:strcpy(pStr,"30");return;
+  case tlPhase31:strcpy(pStr,"31");return;
+  case tlPhase32:strcpy(pStr,"32");return;
   case tlOS:strcpy(pStr,"OC");return;
   case tlAUTO:strcpy(pStr,"AUTO");return;
   case tlManual:strcpy(pStr,"MANUAL");return;
@@ -871,14 +885,38 @@ switch(status)
 /*----------------------------------------------------------------------------*/
 WORD retTextToPhase(char *pStr)
 {
-if(strcmp(pStr,"1") == 0)return tlPhase1;
-if(strcmp(pStr,"2") == 0)return tlPhase2;
-if(strcmp(pStr,"3") == 0)return tlPhase3;
-if(strcmp(pStr,"4") == 0)return tlPhase4;
-if(strcmp(pStr,"5") == 0)return tlPhase5;
-if(strcmp(pStr,"6") == 0)return tlPhase6;
-if(strcmp(pStr,"7") == 0)return tlPhase7;
-if(strcmp(pStr,"8") == 0)return tlPhase8;
+if(strcmp(pStr,"1")  == 0)return tlPhase1;
+if(strcmp(pStr,"2")  == 0)return tlPhase2;
+if(strcmp(pStr,"3")  == 0)return tlPhase3;
+if(strcmp(pStr,"4")  == 0)return tlPhase4;
+if(strcmp(pStr,"5")  == 0)return tlPhase5;
+if(strcmp(pStr,"6")  == 0)return tlPhase6;
+if(strcmp(pStr,"7")  == 0)return tlPhase7;
+if(strcmp(pStr,"8")  == 0)return tlPhase8;
+if(strcmp(pStr,"9")  == 0)return tlPhase9;
+if(strcmp(pStr,"10") == 0)return tlPhase10;
+if(strcmp(pStr,"11") == 0)return tlPhase11;
+if(strcmp(pStr,"12") == 0)return tlPhase12;
+if(strcmp(pStr,"13") == 0)return tlPhase13;
+if(strcmp(pStr,"14") == 0)return tlPhase14;
+if(strcmp(pStr,"15") == 0)return tlPhase15;
+if(strcmp(pStr,"16") == 0)return tlPhase16;
+if(strcmp(pStr,"17") == 0)return tlPhase17;
+if(strcmp(pStr,"18") == 0)return tlPhase18;
+if(strcmp(pStr,"19") == 0)return tlPhase19;
+if(strcmp(pStr,"20") == 0)return tlPhase20;
+if(strcmp(pStr,"21") == 0)return tlPhase21;
+if(strcmp(pStr,"22") == 0)return tlPhase22;
+if(strcmp(pStr,"23") == 0)return tlPhase23;
+if(strcmp(pStr,"24") == 0)return tlPhase24;
+if(strcmp(pStr,"25") == 0)return tlPhase25;
+if(strcmp(pStr,"26") == 0)return tlPhase26;
+if(strcmp(pStr,"27") == 0)return tlPhase27;
+if(strcmp(pStr,"28") == 0)return tlPhase28;
+if(strcmp(pStr,"29") == 0)return tlPhase29;
+if(strcmp(pStr,"30") == 0)return tlPhase30;
+if(strcmp(pStr,"31") == 0)return tlPhase31;
+if(strcmp(pStr,"32") == 0)return tlPhase32;
 if(strcmp(pStr,"OC") == 0)return tlOS;
 if(strcmp(pStr,"AUTO") == 0)return tlAUTO;
 if(strcmp(pStr,"MANUAL") == 0)return tlManual;

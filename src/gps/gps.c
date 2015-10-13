@@ -60,6 +60,8 @@ static BOOL tx_pkt_snd_one();
 static unsigned char GPS_LED=0;
   SYSTEMTIME   cool_pack_recv, bad_pack_recv; // control time
 
+#define DEFAULT_GMT 4
+static BOOL validGMT = false;
 static unsigned char GPS_synk_flag;//=false;
 volatile unsigned char gps_pps_counter=0;
 
@@ -285,57 +287,47 @@ void GPS_PPS_int_handler(void)
 //------------------------------------------------------------------------------
 BOOL Synk_TIME(void)
 {
-     DS1390_TIME t;
-     SYSTEMTIME st, n_st;
-    ///
-     if (!GPS_synk_flag)
+    DS1390_TIME t;
+    SYSTEMTIME st, n_st;
+    //
+    if (!GPS_synk_flag)
        return false;
-     //
-     if (gps_pps_counter>1)
+    //
+    if (gps_pps_counter>1)
        return false;
-     ///
-     GPS_synk_flag=false;
-     //проверка валидности
-     if (gps_info.time_valid)
+    //
+    GPS_synk_flag=false;
+    //проверка валидности
+    if (gps_info.time_valid)
      {
-
        st.tm_hour = gps_info.time_pack.hour;
        st.tm_mday = gps_info.time_pack.date;
        st.tm_min  = gps_info.time_pack.min;
        //
-       st.tm_mon = gps_info.time_pack.month;
-       st.tm_sec = gps_info.time_pack.sec;
-       st.tm_year= gps_info.time_pack.year;
+       st.tm_mon  = gps_info.time_pack.month;
+       st.tm_sec  = gps_info.time_pack.sec;
+       st.tm_year = gps_info.time_pack.year;
        //
        if (st.tm_year<100)
          st.tm_year+=2000;
-
-       ////////////////
        // Корректировка UTC+
+       /*
        int gmt=4;
-       if (DK[CUR_DK].proj_valid)
-          gmt = PROJ[CUR_DK].jornal.gmt;
-
+       if (DK[CUR_DK].proj_valid) // проверка проекта
+          gmt = PROJ[CUR_DK].jornal.gmt;*/
+       int gmt = getValueGMT();
        TIME_PLUS(&st, &n_st, gmt*3600);
-
-       //////
-            t.msec = 0;
-            t.sec = n_st.tm_sec;
-            t.min = n_st.tm_min;
-            t.hour = n_st.tm_hour;
-            t.year = n_st.tm_year;
-            t.month = n_st.tm_mon;
-            t.date = n_st.tm_mday;
-            ////
-            if (SetTime_DS1390(&t))
-            {
-              GPS_LED = 2;
-            }
-            else
-            {
-              GPS_LED = 1;
-            }
-     }
+       t.msec = 0;
+       t.sec = n_st.tm_sec;
+       t.min = n_st.tm_min;
+       t.hour = n_st.tm_hour;
+       t.year = n_st.tm_year;
+       t.month = n_st.tm_mon;
+       t.date = n_st.tm_mday;
+       //
+       if (SetTime_DS1390(&t)){GPS_LED = 2;}
+                          else{GPS_LED = 1;}
+     }//end gps_info.time_valid
 return true;
 }
 //------------------------------------------------------------------------------
@@ -768,4 +760,14 @@ static float string_to_float ( unsigned char * buf)
     };
     return (float)data/del;
 }
-
+// установить состояние проетка
+void setValidGMT(const BOOL val)
+{
+validGMT = val;
+}
+// проверить состояние проетка
+unsigned char getValueGMT(void)
+{
+if(validGMT)return PROJ[CUR_DK].jornal.gmt;
+return DEFAULT_GMT;
+}

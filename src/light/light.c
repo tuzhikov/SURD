@@ -114,11 +114,12 @@ BOOL ligh_load_init(int  fin_try)
           DK[CUR_DK].proj_valid=true;
           DK[CUR_DK].work = true;
           DK[CUR_DK].progs_valid = true;
+          setValidGMT(true);
           return true;
         }
         else
         {
-
+            setValidGMT(false);
             dbg_printf("FAULT. CRC32 of progs invalid");
             if (CUR_DK==0)
             if (!fin_try)

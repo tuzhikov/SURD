@@ -41,14 +41,13 @@ typedef struct _GPS_INFO
         float Velocity;
         float Course;
     } Velocity;
-
     unsigned long crc_error;
     unsigned long pack_found;
-
     unsigned char delta_time;
+
 }GPS_INFO;
 
-
+/*----------------------------------------------------------------------------*/
 void GPS_init();
 void uart0_int_handler();
 void Get_gps_info(GPS_INFO *gps);
@@ -58,6 +57,8 @@ void GPS_PPS_int_handler(void);
 //BOOL Get_GPS_Time(DS1390_TIME * time);
 //BOOL Get_time_sync(void);
 BOOL Synk_TIME(void);
+unsigned char getValueGMT(void);
+void setValidGMT(const BOOL val);
 
 //extern unsigned char GPS_synk_flag;//=false;
 

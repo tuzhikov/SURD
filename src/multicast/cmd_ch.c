@@ -425,13 +425,17 @@ return false;
 /* переключение на OS and AUTO -----------------------------------------------*/
 BOOL retModeNoPolling(void)
 {
-const BOOL flagOS_AUTO_ON = DK[CUR_DK].OSHARD|DK[CUR_DK].OSSOFT|DK[CUR_DK].tumblerAUTO;
+const BOOL flagOS_AUTO_ON = (DK[CUR_DK].OSHARD)|(DK[CUR_DK].OSSOFT)|(DK[CUR_DK].tumblerAUTO);
 // установка флага ДК
 if(DK[CUR_DK].CUR.source==ALARM) setStatusDK(false);
                             else setStatusDK(true);
 // установка флага СУРД
-if(flagOS_AUTO_ON||(!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(false);}
-                                                     else{setFlagLocalStatusSURD(true);}
+/*if(flagOS_AUTO_ON||(!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(false);}
+                                                     else{setFlagLocalStatusSURD(true);}*/
+if((!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(RESTART_DK_OK);}
+  else if(flagOS_AUTO_ON)setFlagLocalStatusSURD(RESTART_DK_NO);
+        else{setFlagLocalStatusSURD(true);}
+
 // нет режима программирования и не включен tumbler AUTO
 /*if(flagOS_AUTO_ON){
   // сбросс флагов Net
@@ -533,7 +537,8 @@ return retNull;
 Type_Return masterDkStatus(const TPROJECT *ret)
 {
 const WORD IPPORT = ret->surd.PORT;
-static char BuffCommand[200];
+const WORD CountRepet = ret->surd.Count;
+static char BuffCommand[250];
 static int stepMaster = Null;
 static BYTE indeDk = 1,countsend=0;// счет indeDk со второго ДК
 static BYTE countmessageOk = 0,countmessageErr = 0;
@@ -570,7 +575,7 @@ switch(stepMaster)
         else{
         stepMaster=Three;}
       }
-    if(++countsend>3){ // ответа нет 3 раза
+    if(++countsend>CountRepet){ // ответа нет 3 раза
       stepMaster = Three;return retError;
       }
     return retOk;
@@ -864,12 +869,12 @@ DK[CUR_DK].StatusDK = NULL;
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
 // статус СУРД сетевой
-BOOL getFlagStatusSURD(void)
+BYTE getFlagStatusSURD(void)
 {
-return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
+return (BYTE)DK[CUR_DK].StatusSurd.flagStatusSURD;
 }
 // установить статус СУРД
-void setFlagStatusSURD(const BOOL flag)
+void setFlagStatusSURD(const BYTE flag)
 {
 DK[CUR_DK].StatusSurd.flagStatusSURD = flag;
 }
@@ -880,12 +885,12 @@ DK[CUR_DK].StatusSurd.flagStatusSURD = NULL;
 }
 /* -------------------------статус СУРД локально------------------------------*/
 // установить
-void setFlagLocalStatusSURD(const BOOL flag)
+void setFlagLocalStatusSURD(const BYTE flag)
 {
 DK[CUR_DK].StatusSurd.flagLocalStatusSURD = flag;
 }
 // прочитать
-BOOL getFlagLocalStatusSURD(void)
+BYTE getFlagLocalStatusSURD(void)
 {
 return (BOOL)DK[CUR_DK].StatusSurd.flagLocalStatusSURD;
 }

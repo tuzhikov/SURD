@@ -13,6 +13,9 @@ typedef struct tm SYSTEMTIME;
 //#define SYSTEMTIME      (struct tm)
 // коды ошибок
 #define RET_OK          0
+// рестарт по SURD
+#define RESTART_DK_NO 0x10
+#define RESTART_DK_OK 0x01
 
 // лаг времени системы -
 // запрет делать операции

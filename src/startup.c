@@ -51,7 +51,7 @@ __root int_handler_t const __vector_table[] =
     tn_default_int_handler,     // GPIO Port D
     tn_default_int_handler,     // GPIO Port E
     hw_uart0_int_handler,       // UART0 Rx and Tx
-    hw_uart1_int_handler,       // UART1 Rx and Tx
+    hw_uart1_int_handler,       // UART1 Rx and Tx  number  - 22
     tn_default_int_handler,     // SSI0 Rx and Tx
     tn_default_int_handler,     // I2C0 Master and Slave
     tn_default_int_handler,     // PWM Fault
@@ -100,5 +100,5 @@ __root int_handler_t const __vector_table[] =
     tn_default_int_handler,     // I2S0
     tn_default_int_handler,     // External Bus Interface 0
     hw_portJ_int_handler,     // GPIO Port J
-    0                           // Reserved
+    0                           // Reserved   number  - 71
 };

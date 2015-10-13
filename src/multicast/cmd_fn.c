@@ -216,8 +216,9 @@ if(strcmp(argv[14],"TM:")==0){
   }
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
+
   //установить фазы модуль ВПУ
-  const BOOL net = getFlagStatusSURD();
+  const BYTE net = getFlagStatusSURD();
   updateCurrentDatePhase(net,id,true,phase);// включаем ВПУ по сети
   // должны засветить LED
   if(id!=PROJ[CUR_DK].surd.ID_DK_CUR){ //это не активное ВПУ, отображаем LED
@@ -1621,7 +1622,7 @@ static err_t udp_send_config(struct cmd_raw* cmd_p)
 // "ответ slave" для мастера
 static err_t udp_send_surd(struct cmd_raw* cmd_p)
 {
-    char buf[200],txtPhase[15]={0};
+    char buf[250],txtPhase[15]={0};
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
     const long idp = retCRC32();
     const BYTE currID = prg->surd.ID_DK_CUR;
@@ -1630,8 +1631,19 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const BOOL onVPU = retOnVPU();
     const BYTE nPhase = retStateVPU(); // фаза на ВПУ
     const WORD stLed = retStatusLed(); // состояние светодиодов
-    retPhaseToText(txtPhase,nPhase);
+    retPhaseToText(txtPhase,sizeof(txtPhase),nPhase);
     const DWORD stNEt = retStatusNet();
+    //
+    const BYTE  stVB = dataVpu.bOnIndx;
+    const BYTE  stPR = DK[CUR_DK].REQ.req[VPU].faza;
+    const BYTE  stPC = DK[CUR_DK].CUR.faza;
+    // пеерменные
+    const BYTE  stPCp = DK[CUR_DK].CUR.prog_faza;
+    const BYTE  stPN = DK[CUR_DK].NEXT.faza;
+    const BYTE  stPNp = DK[CUR_DK].NEXT.prog_faza;
+    const BYTE  stPex  = dataVpu.nextPhase;
+    const BYTE  stStep = dataVpu.stepbt;
+
     snprintf(buf, sizeof(buf),
         "SUCCESS: "
         "ID:    %u\r\n"
@@ -1642,7 +1654,16 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "PHASE: %s\r\n"
         "LED:   %u\r\n"
         "VER:   %u\r\n"
-        "ST:    %u\r\n",
+        "ST:    %u\r\n"
+        "But:   %u\r\n"
+        "PhExt:  %u\r\n"
+        "PhR:   %u\r\n"
+        "PhC:   %u\r\n"
+        "Step:  %u\r\n"
+        "PhCPL:  %u\r\n"
+        "PhN:   %u\r\n"
+        "PhNPL:  %u\r\n"
+          ,
         currID,
         idp,
         Passw,
@@ -1651,7 +1672,16 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         txtPhase,
         stLed,
         VER_MAJOR,
-        stNEt);
+        stNEt,
+        stVB,
+        stPex,
+        stPR,
+        stPC,
+        stStep,
+        stPCp,
+        stPN,
+        stPNp
+        );
 return udp_sendstr(cmd_p, buf); // отправка буффера
 }
 /*----------------------------------------------------------------------------*/
