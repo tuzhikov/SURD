@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32  // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     17  // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     20  // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 #define MAX_VIR_VPU     32
@@ -65,7 +65,7 @@ DWORD retStatusNetSend(void);
 void  setStatusNetSend(DWORD st);
 DWORD retStatusNet(void);
 void setStatusNet(DWORD st);
-void setStatusOneDk(const BYTE nDk,const BYTE sSurd);
+void setStatusOneDk(const BYTE nDk,const BOOL sSurd,const BYTE actSurd);
 BOOL getStatusOneDk(const BYTE nDk);
 void clearStatusOneDk(const BYTE nDk);
 BOOL getAllDk(void);
@@ -81,19 +81,22 @@ DWORD retStSurd(void);
 void setStSurd(DWORD st);
 BOOL getStSurdOneDk(const BYTE nDk);
 void clearStSurdOneDk(const BYTE nDk);
-BYTE getFlagStatusSURD(void);
-void setFlagStatusSURD(const BYTE flag);
+//Установить состояние события СУРД по UDP
+BOOL getFlagStatusSURD(void);
+void setFlagStatusSURD(const BOOL flag);
 void clearFlagStatusSURD(void);
-//
+//Установить состояние события СУРД данного ДК
+BOOL getFlagLocalStatusSURD(void);
+BYTE getValueFlagLocalStatusSURD(void);
 void setFlagLocalStatusSURD(const BYTE flag);
-BYTE getFlagLocalStatusSURD(void);
+BYTE checkActionSURD(void);
 //
 void clearStatusNet(void);
 void clearStatusSurdSend(void);
 void clearStatusNetSend(void);
 BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,const DWORD idp,
                           const BYTE surdOn,const BYTE vpuOn,const BYTE vpuPhase,
-                          const WORD stled);
+                          const WORD stled,const BYTE valSurd);
 BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,
                          const DWORD stnet,const DWORD sdnet);
 

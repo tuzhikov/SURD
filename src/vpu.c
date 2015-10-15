@@ -661,7 +661,7 @@ static void task_VPU_func(void* param)
     // интервал 100мс.
     tn_task_sleep(VPU_REFRESH_INTERVAL);
     // получить статус СУРД
-    vpu_exch.m_to_s.statusNet = getFlagStatusSURD(); // статус СУРД
+    vpu_exch.m_to_s.statusNet =  getFlagStatusSURD(); // статус СУРД
     // опрос ВПУ
     answer = DataExchange();
 
@@ -689,8 +689,12 @@ static void task_VPU_func(void* param)
                             else {stepVPU = For;}
         break;
       case Three: // очистка через КК
-        //DK_RESTART();
+        {
+        const BYTE valueStSURD=DK[CUR_DK].StatusSurd.globalActionSURD;
+        if(valueStSURD==SURD_RESTART_DK_OK) DK_RESTART(); // надо выйти из ВПУ по КК
+        if(valueStSURD==SURD_RESTART_DK_NO); // это сетевой режим ОС или ТУМБЛЕР АВТО
         stepVPU = For;
+        }
       case For: // очистка
         ResetStrSlave();         // сброс структуры опроса ВПУ.
         ResetStrMaster();        // сбросс структуры управления ВПУ

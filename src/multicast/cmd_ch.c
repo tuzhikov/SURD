@@ -432,9 +432,10 @@ if(DK[CUR_DK].CUR.source==ALARM) setStatusDK(false);
 // установка флага СУРД
 /*if(flagOS_AUTO_ON||(!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(false);}
                                                      else{setFlagLocalStatusSURD(true);}*/
-if((!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(RESTART_DK_OK);}
-  else if(flagOS_AUTO_ON)setFlagLocalStatusSURD(RESTART_DK_NO);
-        else{setFlagLocalStatusSURD(true);}
+
+if((!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(SURD_RESTART_DK_OK);}
+                  else if(flagOS_AUTO_ON){setFlagLocalStatusSURD(SURD_RESTART_DK_NO);}
+                                     else{setFlagLocalStatusSURD(SURD_DK_OK);}
 
 // нет режима программирования и не включен tumbler AUTO
 /*if(flagOS_AUTO_ON){
@@ -552,7 +553,7 @@ switch(stepMaster)
   case Null: //сбросс
     clearStatusOneDk(indeDk);// нулим
     clearStSurdOneDk(indeDk);// нулим
-    setStatusOneDk(0,getFlagStatusSURD()); // status master, статус СУРД
+    setStatusOneDk(0,getFlagStatusSURD(),getValueFlagLocalStatusSURD()); // status master, статус СУРД
     countsend =0;
     if(retAnswerVPU())
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
@@ -616,6 +617,8 @@ switch(stepMaster)
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
       }
+    // события СУРД
+    DK[CUR_DK].StatusSurd.globalActionSURD = checkActionSURD();
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
     return retOk;
@@ -697,6 +700,8 @@ switch(stepSlave)
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
         }
+      // события СУРД
+      DK[CUR_DK].StatusSurd.globalActionSURD = checkActionSURD();
       stepSlave = Null;
       return retOk;
   default:stepSlave = Null;
@@ -868,13 +873,13 @@ DK[CUR_DK].StatusDK = NULL;
 /*----------------------------------------------------------------------------*/
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
-// статус СУРД сетевой
-BYTE getFlagStatusSURD(void)
+//вернуть статус СУРД сетевой
+BOOL getFlagStatusSURD(void)
 {
-return (BYTE)DK[CUR_DK].StatusSurd.flagStatusSURD;
+return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
 }
 // установить статус СУРД
-void setFlagStatusSURD(const BYTE flag)
+void setFlagStatusSURD(const BOOL flag)
 {
 DK[CUR_DK].StatusSurd.flagStatusSURD = flag;
 }
@@ -889,10 +894,15 @@ void setFlagLocalStatusSURD(const BYTE flag)
 {
 DK[CUR_DK].StatusSurd.flagLocalStatusSURD = flag;
 }
-// прочитать
-BYTE getFlagLocalStatusSURD(void)
+// значение СУРД значение
+BYTE getValueFlagLocalStatusSURD(void)
 {
-return (BOOL)DK[CUR_DK].StatusSurd.flagLocalStatusSURD;
+return (BYTE)DK[CUR_DK].StatusSurd.flagLocalStatusSURD;
+}
+// вернуть статус СУРД
+BOOL getFlagLocalStatusSURD(void)
+{
+return ((~DK[CUR_DK].StatusSurd.flagLocalStatusSURD)&SURD_DK_OK)? false:true;
 }
 /*----------------------------------------------------------------------------*/
 // проверка все ДК в сети
@@ -951,6 +961,21 @@ for(int i=0;i<maxDk;i++)
   }
 return true;
 }
+// проверить события СУРД
+BYTE checkActionSURD(void)
+{
+const int maxDk = PROJ[CUR_DK].maxDK;
+
+for(int i=0;i<maxDk;i++)
+  {
+  if(PROJ[CUR_DK].surd.ID_DK_CUR==i){ // локальный ДК
+    DK[CUR_DK].StatusSurd.netActionSURD[i]= getValueFlagLocalStatusSURD();
+    }
+  if(DK[CUR_DK].StatusSurd.netActionSURD[i]==SURD_RESTART_DK_NO)return SURD_RESTART_DK_NO;
+  if(DK[CUR_DK].StatusSurd.netActionSURD[i]==SURD_RESTART_DK_OK)return SURD_RESTART_DK_OK;
+  }
+return SURD_DK_OK;
+}
 /*----------------------------------------------------------------------------*/
 // проверить все ДК на связи.
 BOOL getAllDk(void)
@@ -966,10 +991,11 @@ for(int i=0;i<maxDk;i++)
 return true;
 }
 // установть новый статус One ДК
-void setStatusOneDk(const BYTE nDk,const BYTE sSurd)
+void setStatusOneDk(const BYTE nDk,const BOOL sSurd,const BYTE actSurd)
 {
 DK[CUR_DK].StatusSurd.tmpStatusNet|=1<<nDk; //статус NET ДК
 if(sSurd)DK[CUR_DK].StatusSurd.tmpStatusSURD|=1<<nDk; // статус СУРД для этого ДК
+DK[CUR_DK].StatusSurd.netActionSURD[nDk] = actSurd;
 }
 // запросить статус One DK
 BOOL getStatusOneDk(const BYTE nDk)
@@ -980,11 +1006,14 @@ return (BOOL)(DK[CUR_DK].StatusSurd.tmpStatusNet)&(1<<nDk);
 void clearStatusOneDk(const BYTE nDk)
 {
 DK[CUR_DK].StatusSurd.tmpStatusNet&=~(1<<nDk);
+DK[CUR_DK].StatusSurd.netActionSURD[nDk] = NULL;
 }
 // очистить весь статус all DK
 void clearStatusNet(void)
 {
 DK[CUR_DK].StatusSurd.tmpStatusNet=NULL;
+for(int i=0;i<MAX_DK;i++)
+  DK[CUR_DK].StatusSurd.netActionSURD[i] = NULL;
 }
 // return status all DK
 DWORD retStatusNet(void)
@@ -1055,7 +1084,8 @@ BOOL checkMasterMessageDk(const BYTE id,
                           const BYTE surdOn,
                           const BYTE vpuOn,
                           const BYTE vpuPhase,
-                          const WORD stled)
+                          const WORD stled,
+                          const BYTE valSurd)
 {
 const TPROJECT *prj = retPointPROJECT();
 //сравним  IDP
@@ -1065,7 +1095,7 @@ if(idp==idp_calc){// проект наш
   if(pass==prj->surd.Pass){
     if(id<prj->maxDK){
       if(prj->surd.ID_DK_CUR==0){ //DK master
-        setStatusOneDk(id,surdOn);//дк ответил, установили статус Net и СУРД
+        setStatusOneDk(id,surdOn,valSurd);//дк ответил, установили статус Net и СУРД
         vir_vpu.vpu[id].id = id;
         vir_vpu.vpu[id].vpuOn = vpuOn;
         vir_vpu.vpu[id].phase = vpuPhase;

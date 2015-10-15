@@ -152,7 +152,7 @@ void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<10){ // пришло не то
     return;
     }
-unsigned long idp=0,pass=0,id=0,vpuOn=0,surdOn=0,vpuPhase=0,stLed=0;
+unsigned long idp=0,pass=0,id=0,vpuOn=0,surdOn=0,vpuPhase=0,stLed=0,valSurd=0;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -178,7 +178,10 @@ if(strcmp(argv[10],"PHASE:")==0){
 if(strcmp(argv[12],"LED:")==0){
   sscanf(argv[13],"%u",&stLed);
   }
-checkMasterMessageDk((BYTE)id,pass,idp,surdOn,vpuOn,vpuPhase,stLed);// установим статусы
+if(strcmp(argv[14],"VSR:")==0){
+  sscanf(argv[15],"%u",&valSurd);
+  }
+checkMasterMessageDk((BYTE)id,pass,idp,surdOn,vpuOn,vpuPhase,stLed,valSurd);// установим статусы
 }
 /*----------------------------------------------------------------------------*/
 /* "для slave"пришла информация о фазах, режим работы с ВПУ, */
@@ -188,7 +191,7 @@ void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<10){ // пришло не то
     return;
     }
-unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0;
+unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0;//,valSurd = 0;
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
   sscanf(argv[1],"%u",&id);
@@ -214,16 +217,21 @@ if(strcmp(argv[12],"LED:")==0){
 if(strcmp(argv[14],"TM:")==0){
   sscanf(argv[15],"%u",&time);
   }
+/*if(strcmp(argv[16],"VSR:")==0){
+  sscanf(argv[17],"%u",&valSurd);
+  } */
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
 
   //установить фазы модуль ВПУ
-  const BYTE net = getFlagStatusSURD();
+  const BOOL net = getFlagStatusSURD();
   updateCurrentDatePhase(net,id,true,phase);// включаем ВПУ по сети
   // должны засветить LED
   if(id!=PROJ[CUR_DK].surd.ID_DK_CUR){ //это не активное ВПУ, отображаем LED
     setStatusLed(stLed);
     }
+  //событие СУРД
+  //DK[CUR_DK].StatusSurd.globalActionSURD = valSurd;
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
@@ -1627,17 +1635,17 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const long idp = retCRC32();
     const BYTE currID = prg->surd.ID_DK_CUR;
     const DWORD Passw = prg->surd.Pass;
-    const BOOL stSURD = getFlagLocalStatusSURD();
+    const BOOL stSURD = getFlagLocalStatusSURD(); // передаем лог сотояние
     const BOOL onVPU = retOnVPU();
     const BYTE nPhase = retStateVPU(); // фаза на ВПУ
     const WORD stLed = retStatusLed(); // состояние светодиодов
     retPhaseToText(txtPhase,sizeof(txtPhase),nPhase);
     const DWORD stNEt = retStatusNet();
-    //
+    const BYTE valSURD = getValueFlagLocalStatusSURD(); // события СУРД
+    // переменные отладка
     const BYTE  stVB = dataVpu.bOnIndx;
     const BYTE  stPR = DK[CUR_DK].REQ.req[VPU].faza;
     const BYTE  stPC = DK[CUR_DK].CUR.faza;
-    // пеерменные
     const BYTE  stPCp = DK[CUR_DK].CUR.prog_faza;
     const BYTE  stPN = DK[CUR_DK].NEXT.faza;
     const BYTE  stPNp = DK[CUR_DK].NEXT.prog_faza;
@@ -1653,16 +1661,17 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "VPU:   %s\r\n"
         "PHASE: %s\r\n"
         "LED:   %u\r\n"
+        "VSR:   %u\r\n"
         "VER:   %u\r\n"
         "ST:    %u\r\n"
         "But:   %u\r\n"
-        "PhExt:  %u\r\n"
+        "PhExt: %u\r\n"
         "PhR:   %u\r\n"
         "PhC:   %u\r\n"
         "Step:  %u\r\n"
-        "PhCPL:  %u\r\n"
+        "PhCPL: %u\r\n"
         "PhN:   %u\r\n"
-        "PhNPL:  %u\r\n"
+        "PhNPL: %u\r\n"
           ,
         currID,
         idp,
@@ -1671,6 +1680,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         onVPU?"ON":"OFF",
         txtPhase,
         stLed,
+        valSURD,
         VER_MAJOR,
         stNEt,
         stVB,
