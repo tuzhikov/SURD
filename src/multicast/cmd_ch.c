@@ -469,6 +469,7 @@ if(typeCmd==SET_STATUS){
   const long stnet = retStatusSurdSend();// статус СУРД общий для сети
   const long sdnet = retStatusNetSend(); // статус NET общий для сети
   const long retTime = retTimePhase(); // остаток времени для работы фазы
+  const long retGSD = DK[CUR_DK].StatusSurd.globalActionSURD;
 
   snprintf(pStr,leng,
         "setstatussurd\r"
@@ -476,12 +477,14 @@ if(typeCmd==SET_STATUS){
         "PASSW: %u\r\n"
         "ST:    %u\r\n"
         "SD:    %u\r\n"
-        "TM:    %u\r\n",
+        "TM:    %u\r\n"
+        "GSD:   %u\r\n",
         idp,
         passw,
         stnet,
         sdnet,
-        retTime);
+        retTime,
+        retGSD);
   return true;
   }
 if(typeCmd==SET_PHASE){
@@ -494,6 +497,7 @@ if(typeCmd==SET_PHASE){
     const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
     const long retTime = retTimePhase(); // остаток времени для работы фазы
+    const long retGSD = DK[CUR_DK].StatusSurd.globalActionSURD;
 
     snprintf(pStr,leng,
         "setphaseudp\r"
@@ -504,7 +508,8 @@ if(typeCmd==SET_PHASE){
         "SD:    %u\r\n"
         "PHASE: %u\r\n"
         "LED:   %u\r\n"
-        "TM:    %u\r\n",
+        "TM:    %u\r\n"
+        "GSD:   %u\r\n",
         id,
         idp,
         passw,
@@ -512,7 +517,9 @@ if(typeCmd==SET_PHASE){
         sdnet,
         phase,
         stLed,
-        retTime);
+        retTime,
+        retGSD
+         );
   return true;
   }
 return false;
@@ -617,8 +624,9 @@ switch(stepMaster)
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
       }
-    // события СУРД
+    // события СУРД передаваемые в сеть
     DK[CUR_DK].StatusSurd.globalActionSURD = checkActionSURD();
+    DK[CUR_DK].StatusSurd.localGlobalActionSURD = DK[CUR_DK].StatusSurd.globalActionSURD;
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
     return retOk;
@@ -657,6 +665,7 @@ switch(stepSlave)
   case Null:
     clearStatusNet();
     clearStSurd();
+    DK[CUR_DK].StatusSurd.globalActionSURD = NULL; // чистим состояние, борьба с зависанием
     stepSlave = One;
   case One: // Ждем 2 сек и проверка на ОС
     if(retModeNoPolling())return retNull; // включили ОС, выходим
@@ -700,8 +709,8 @@ switch(stepSlave)
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
         }
-      // события СУРД
-      DK[CUR_DK].StatusSurd.globalActionSURD = checkActionSURD();
+      // сохраняем состоние СУРД
+      DK[CUR_DK].StatusSurd.localGlobalActionSURD = DK[CUR_DK].StatusSurd.globalActionSURD;
       stepSlave = Null;
       return retOk;
   default:stepSlave = Null;
@@ -961,7 +970,7 @@ for(int i=0;i<maxDk;i++)
   }
 return true;
 }
-// проверить события СУРД
+// проверить события СУРД для мастера
 BYTE checkActionSURD(void)
 {
 const int maxDk = PROJ[CUR_DK].maxDK;

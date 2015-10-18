@@ -652,6 +652,8 @@ static void task_VPU_func(void* param)
   //static int fStatus = 0;
   static BYTE stepVPU = Null;
   static WORD answer = ansNull;
+  static BYTE DelayTime = Null;
+  static BYTE OldSourse;
   DataInstall();
   ResetStrSlave();
   ResetStrMaster();
@@ -662,13 +664,15 @@ static void task_VPU_func(void* param)
     tn_task_sleep(VPU_REFRESH_INTERVAL);
     // получить статус СУРД
     vpu_exch.m_to_s.statusNet =  getFlagStatusSURD(); // статус СУРД
+    //const BYTE valueStSURD=DK[CUR_DK].StatusSurd.localGlobalActionSURD;
     // опрос ВПУ
     answer = DataExchange();
 
     switch(stepVPU)
       {
       case Null:// активный ВПУ
-        if(!vpu_exch.m_to_s.statusNet){stepVPU = Three; break;}
+        if(!vpu_exch.m_to_s.statusNet){
+          OldSourse=DK[CUR_DK].CUR.source;DelayTime=20;stepVPU = Three;break;}
         if(answer&ansOk){
           updateSatusButton();
           VPU_LOGIC();
@@ -683,16 +687,25 @@ static void task_VPU_func(void* param)
             }
         break;
       case One: // пасcивный ВПУ выключен или не подключен
-        if(!vpu_exch.m_to_s.statusNet){stepVPU = Three; break;}// сеть есть?
+        if(!vpu_exch.m_to_s.statusNet){
+          OldSourse=DK[CUR_DK].CUR.source;DelayTime=20;stepVPU = Three;break;}// сеть есть?
         if(answer&ansOk){stepVPU = Null; break;} // включили ВПУ
         if(vpu_exch.m_to_s.vpuOn){DK_Phase_Call();}
                             else {stepVPU = For;}
         break;
       case Three: // очистка через КК
         {
-        const BYTE valueStSURD=DK[CUR_DK].StatusSurd.globalActionSURD;
-        if(valueStSURD==SURD_RESTART_DK_OK) DK_RESTART(); // надо выйти из ВПУ по КК
-        if(valueStSURD==SURD_RESTART_DK_NO); // это сетевой режим ОС или ТУМБЛЕР АВТО
+        if(--DelayTime)break;
+        //const BYTE valueStSURD=DK[CUR_DK].StatusSurd.localGlobalActionSURD;
+        //if(dataVpu.RY){ // ручной режим
+        if((OldSourse==VPU)){
+          //DK_RESTART();//
+          tn_reset();
+          //if((valueStSURD==SURD_RESTART_DK_OK)||(valueStSURD==SURD_RESTART_DK_NO)||
+          //  (valueStSURD==NULL)) tn_reset();//DK_RESTART();
+          //if(valueStSURD==SURD_RESTART_DK_OK)DK_RESTART(); // надо выйти из ВПУ по КК
+          //if(valueStSURD==SURD_RESTART_DK_NO)DK_RESTART(); // это сетевой режим ОС или ТУМБЛЕР АВТО
+          }
         stepVPU = For;
         }
       case For: // очистка
@@ -703,6 +716,7 @@ static void task_VPU_func(void* param)
         ReturnToWorkPlan();      // return to PLAN
         stepVPU = Five;
       case Five: // ни показывать LED пока не появиься статус СУРД
+        //const BYTE valueStSURD=DK[CUR_DK].StatusSurd.localGlobalActionSURD;
         if(vpu_exch.m_to_s.statusNet)stepVPU = Null;
         break;
       default:stepVPU = Null;

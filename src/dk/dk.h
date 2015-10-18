@@ -14,9 +14,10 @@ typedef struct tm SYSTEMTIME;
 // коды ошибок
 #define RET_OK          0
 // рестарт по SURD
-#define SURD_RESTART_DK_NO 0x10
-#define SURD_RESTART_DK_OK 0x01
-#define SURD_DK_OK         (0x10|0x01)
+#define SURD_RESTART_DK_NULL 0x00
+#define SURD_RESTART_DK_NO   0x01
+#define SURD_RESTART_DK_OK   0x02
+#define SURD_DK_OK         (0x01|0x02)
 
 // лаг времени системы -
 // запрет делать операции
@@ -150,11 +151,14 @@ typedef struct{
   DWORD sendStatusSURD; // переменная для передачи в сеть, копия tmpStatusSURD
   DWORD tmpStatusNet;   // мах ДК 32 собирает инф. мастер о slave
   DWORD tmpStatusSURD;  // статус СУРД собирает "мастер"
+
   BYTE  flagNetworkStatus; // сетевой статус общий после опроса ДК
   BYTE  flagStatusSURD;    // статус СУРД, общий после опроса ДК
+
   BYTE  flagLocalStatusSURD; //
   BYTE  netActionSURD[MAX_DK];// события с ДК по сети
-  BYTE  globalActionSURD;
+  BYTE  globalActionSURD;     // это передает мастер состояние сурд
+  BYTE  localGlobalActionSURD; // временноо сохраняет сосотояние globalActionSURD
 }STATUS_SURD;
 // Структура - ДК
 typedef struct
