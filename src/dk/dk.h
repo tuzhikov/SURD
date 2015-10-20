@@ -152,13 +152,10 @@ typedef struct{
   DWORD tmpStatusNet;   // мах ДК 32 собирает инф. мастер о slave
   DWORD tmpStatusSURD;  // статус СУРД собирает "мастер"
 
-  BYTE  flagNetworkStatus; // сетевой статус общий после опроса ДК
-  BYTE  flagStatusSURD;    // статус СУРД, общий после опроса ДК
-
+  BYTE  flagNetworkStatus;   // сетевой статус общий после опроса ДК
+  BYTE  flagStatusSURD;      // статус СУРД, общий после опроса ДК
   BYTE  flagLocalStatusSURD; //
-  BYTE  netActionSURD[MAX_DK];// события с ДК по сети
-  BYTE  globalActionSURD;     // это передает мастер состояние сурд
-  BYTE  localGlobalActionSURD; // временноо сохраняет сосотояние globalActionSURD
+
 }STATUS_SURD;
 // Структура - ДК
 typedef struct

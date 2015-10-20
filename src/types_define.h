@@ -65,5 +65,6 @@ typedef enum _Type_Return_{retNull=0x0000,retOk=0x0001,retError=0x0002,retDelay=
 #define Three 3
 #define For   4
 #define Five  5
-
+#define Sex   6
+#define Seven 7
 #endif // __TYPES_DEFINE_H__

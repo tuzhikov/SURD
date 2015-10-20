@@ -89,7 +89,6 @@ void clearFlagStatusSURD(void);
 BOOL getFlagLocalStatusSURD(void);
 BYTE getValueFlagLocalStatusSURD(void);
 void setFlagLocalStatusSURD(const BYTE flag);
-BYTE checkActionSURD(void);
 //
 void clearStatusNet(void);
 void clearStatusSurdSend(void);

@@ -107,7 +107,7 @@ if (argc<7) // пришло не то
     return;
     }
 // проверка сообщения
-unsigned long idp=0,pass=0,fSn=0,fSd=0,time = 0,valSurd = 0;
+unsigned long idp=0,pass=0,fSn=0,fSd=0,time = 0;
 
 if(strcmp(argv[0],"IDP:")==0){
   sscanf(argv[1],"%u",&idp);
@@ -124,14 +124,9 @@ if(strcmp(argv[6],"SD:")==0){
 if(strcmp(argv[8],"TM:")==0){
   sscanf(argv[9],"%u",&time);
   }
-if(strcmp(argv[10],"GSD:")==0){
-  sscanf(argv[11],"%u",&valSurd);
-  }
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
   ReturnToWorkPlan(); // ВПУ off.  в режиме опроса
-  //событие СУРД
-  DK[CUR_DK].StatusSurd.globalActionSURD = valSurd;
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
@@ -196,7 +191,7 @@ void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<10){ // пришло не то
     return;
     }
-unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0,valSurd = 0;
+unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0;
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
   sscanf(argv[1],"%u",&id);
@@ -222,9 +217,6 @@ if(strcmp(argv[12],"LED:")==0){
 if(strcmp(argv[14],"TM:")==0){
   sscanf(argv[15],"%u",&time);
   }
-if(strcmp(argv[16],"GSD:")==0){
-  sscanf(argv[17],"%u",&valSurd);
-  }
 // установить сетевые статусы для slave
 if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
   //установить фазы модуль ВПУ
@@ -234,8 +226,6 @@ if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
   if(id!=PROJ[CUR_DK].surd.ID_DK_CUR){ //это не активное ВПУ, отображаем LED
     setStatusLed(stLed);
     }
-  //событие СУРД
-  DK[CUR_DK].StatusSurd.globalActionSURD = valSurd;
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);

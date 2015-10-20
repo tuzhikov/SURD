@@ -52,11 +52,10 @@ typedef struct _VPU_{
   TVPU_LED      rLed[MAX_LED];
   TVPU_LED      led[MAX_LED];
   int           bOnIndx;        //индекс нажатой кнопки
-  BYTE          currentPhase;   //текущая работающая фаза
   BYTE          nextPhase;      //фаза следующая
-  BYTE          stepbt;         //
-  BOOL          RY;       //Флаг ручного управления
-  BOOL          myRY;     //ручное управление - мы рулим
+  BYTE          stepbt;         // тест
+  BOOL          RY;             //Флаг ручного управления
+  BOOL          myRY;           //ручное управление - мы рулим
 }TVPU;
 #pragma pack(pop)
 extern TVPU dataVpu;
