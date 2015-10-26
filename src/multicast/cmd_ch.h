@@ -48,6 +48,12 @@ typedef struct _VIR_VPU{
  NET_VPU vpu[MAX_VIR_VPU];
  BYTE active; // работающий ВПУ
 }VIR_VPU;
+// промахи опроса по UDP статистика
+typedef struct _POL_SLIPS{
+  BYTE glOk;
+  BYTE glErr;
+}POL_SLIPS;
+extern POL_SLIPS pol_slips;
 /*----------------------------------------------------------------------------*/
 // external value
 extern struct cmd_nfo   g_cmd_nfo[CMD_NFO_SZ];

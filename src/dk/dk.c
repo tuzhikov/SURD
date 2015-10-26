@@ -1094,201 +1094,181 @@ static void Event_Change_Fase(void)
         strcat(buf,"\n");
         Event_Push_Str(buf);
 }
-//------------------------------------------------------------------------------
+//----------------------------------------------------------------------------//
+//получить время защитное
+static DWORD getTimeGuard(void)
+{
+return(DK[CUR_DK].PROJ->guard.green_min<=DK[CUR_DK].PROJ->guard.red_min)?
+           (DK[CUR_DK].PROJ->guard.green_min):(DK[CUR_DK].PROJ->guard.red_min);
+}
+//----------------------------------------------------------------------------//
+static void checkTimeGuard(void)
+{
+//защитный интервал
+if(DK[CUR_DK].control.STA==STA_OSN_TAKT){
+  // установим Тмин
+  const DWORD Tmin = getTimeGuard();
+  if ((DK[CUR_DK].control.startLen - DK[CUR_DK].control.len) >  Tmin){// защитный интервал по Тмин зел
+    DK[CUR_DK].control.len = 0;
+    }
+  // повторение фаз после VPU и ТВП
+  if(DK[CUR_DK].CUR.source==PLAN)
+    if(DK[CUR_DK].OLD.source==PLAN){
+      if (DK[CUR_DK].CUR.prog_faza==DK[CUR_DK].OLD.prog_faza){
+        DK[CUR_DK].control.len = 0;
+        }
+    }
+  }
+}
+//----------------------------------------------------------------------------//
 // вызывается при переходах состояний
 static int CUR_NEXT(void)
 {
+static BYTE nextPhase = 0;
 
-                        D_W("CUR_NEXT. Change STATE\n");
-                        //
-                        if ((TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_OC,0)) ||
-                            (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0)) )
-                        if (DK[CUR_DK].NEXT.work!=SPEC_PROG)
-                        {
-                           if (DK[CUR_DK].flash)
-                           {
-                              if (!ligh_load_init())
-                                DK_HALT();
-                           }
-                           //
-                           POWER_SET(true);
-                           //
-                           //if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))
-                           //{
-                              DK[CUR_DK].PLAN.STA=STA_INIT;;
-                              MODEL();
-                           //}
-                           // запуск KK
-                           // но проверим рассинхронизацию
-                           if (Check_Synhro(false))
-                           {
-                              return (0);
-                           }
-                           //
-                           memcpy(&DK[CUR_DK].control.start, &CT, sizeof(SYSTEMTIME));
-                           TIME_PLUS(&CT, &DK[CUR_DK].control.end, DK[CUR_DK].PROJ->guard.kk_len);
-                           //
-                           DK[CUR_DK].control.len = DK[CUR_DK].PROJ->guard.kk_len;
-                           DK[CUR_DK].CUR.spec_prog = SPEC_PROG_KK;
-                           DK[CUR_DK].CUR.source = PLAN;
-                           SET_SPEC_PROG_LEDS();
-                           //
-                           return 0;
-                        }// end DK[CUR_DK].NEXT.work!=SPEC_PROG
-                        //
-                        if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_KK,0))
-                        if (DK[CUR_DK].NEXT.work!=SPEC_PROG)
-                        {
-                             DK[CUR_DK].PLAN.STA=STA_INIT;;
-                             MODEL();
-                        }
-                        //
-                        if (Check_Synhro(true))
-                           {
-                              return (0);
-                           }
-                        //
-                        Copy_STATES(&DK[CUR_DK].OLD, &DK[CUR_DK].CUR);
-                        Copy_STATES(&DK[CUR_DK].CUR, &DK[CUR_DK].NEXT);
-                        // обнуляем следующее состояние
-                        Clear_STATE(&DK[CUR_DK].NEXT);
-                        //
-                        if (!EQ_States(&DK[CUR_DK].CUR, &DK[CUR_DK].OLD))
-                          Event_Change_Fase();
-                        // перешли на ОС?
-                        if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_OC,0))
-                        {
-                           POWER_SET(false);
-                        }
-                        else
-                        {
-                          POWER_SET(true);
-                        }
-
-                        //memset(&DK[CUR_DK].NEXT,0,sizeof(STATE));
-                        //DK[CUR_DK].NEXT.spec_prog = SPEC_PROG_OC;
-                        ////
-                        //// обратная связь
-                        //установили плановую
-                        if (DK[CUR_DK].CUR.source == PLAN)
-                            DK[CUR_DK].PLAN.cur.set = true;
-                        //
-                        if (DK[CUR_DK].CUR.source == TVP)
-                            DK[CUR_DK].TVP.cur.set = true;
-                        ///
-                        if (DK[CUR_DK].CUR.source == VPU)
-                            DK[CUR_DK].VPU.cur.set = true;
-                        //
-                        if (DK[CUR_DK].CUR.source == SERVICE)
-                            DK[CUR_DK].SERVICE.cur.set = true;
-                        // определяем - что будем следующим
-                        // если спец. прога - своё состояние
-                        if (DK[CUR_DK].CUR.work== SPEC_PROG)
-                        {
-                          SET_SPEC_PROG_LEDS();
-                          DK[CUR_DK].control.STA = STA_SPEC_PROG;
-                        }
-                        else
-                        {
-                           Calc_Tc(DK[CUR_DK].CUR.prog);
-                           GEN_TAKTS();
-                           SET_OSN_STATE_LEDS();
-                           DK[CUR_DK].control.STA = STA_OSN_TAKT;
-                           //
-                           //DK[CUR_DK].control.Tosn =0;
-                        }
-                        ///////////////////////////
-                        // проверяем возможность работы ТВП
-                        //DK[CUR_DK].TVP.enabled=false;
-                        //if (DK[CUR_DK].CUR.work== PROG_FAZA)
-                        //    Check_TVP_En();
-                        ////////////////////////////
-                        // фиксируем время начала состояния
-                        memcpy(&DK[CUR_DK].control.start, &CT, sizeof(SYSTEMTIME));
-                        // определяем время окончания
-                        if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP))
-                        {
-                          // время начала текущей фазы
-                           const time_t timeStartPh = getCurrentTimeBeginPhase();    // время начала текущей фазы
-                           const time_t timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;// время когда в эту фазу попали
-                           DWORD TimeDelta;
-                           if(timeStartPh<=timeCurrent)TimeDelta = timeCurrent - timeStartPh;
-                                                  else TimeDelta = timeStartPh - timeCurrent;
-                           if(TimeDelta<=osn_takt_time[CUR_DK])
-                                DK[CUR_DK].control.len = osn_takt_time[CUR_DK]-TimeDelta;
-                                else
-                                DK[CUR_DK].control.len = osn_takt_time[CUR_DK];
-                          // YF
-                          if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))
-                              osn_takt_time[CUR_DK]=1;
-                          // время окончания
-                          TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
-                        }
-                        else
-                        {
-                          // Для ALARM... - длительность - не определена
-                          TIME_PLUS(&CT, &DK[CUR_DK].control.end, 10);
-                          DK[CUR_DK].control.len = 1;
-                        }
+D_W("CUR_NEXT. Change STATE\n");
+//
+if((TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_OC,0)) ||
+    (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0)))
+    if (DK[CUR_DK].NEXT.work!=SPEC_PROG)
+      {
+      if (DK[CUR_DK].flash){
+        if (!ligh_load_init())
+            DK_HALT();}
+      //
+      POWER_SET(true);
+      //
+      //if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))
+      //{
+        DK[CUR_DK].PLAN.STA=STA_INIT;;
+        MODEL();
+      //}
+      // запуск KK
+      // но проверим рассинхронизацию
+      if (Check_Synhro(false)){return (0);}
+      //
+      memcpy(&DK[CUR_DK].control.start, &CT, sizeof(SYSTEMTIME));
+      TIME_PLUS(&CT, &DK[CUR_DK].control.end, DK[CUR_DK].PROJ->guard.kk_len);
+      //
+      DK[CUR_DK].control.len = DK[CUR_DK].PROJ->guard.kk_len;
+      DK[CUR_DK].CUR.spec_prog = SPEC_PROG_KK;
+      DK[CUR_DK].CUR.source = PLAN;
+      SET_SPEC_PROG_LEDS();
+      //
+      return 0;
+      }// end DK[CUR_DK].NEXT.work!=SPEC_PROG
+//
+if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_KK,0))
+  if (DK[CUR_DK].NEXT.work!=SPEC_PROG){
+    DK[CUR_DK].PLAN.STA=STA_INIT;;
+    MODEL();
+    }
+//
+if (Check_Synhro(true)){return (0);}
+//
+Copy_STATES(&DK[CUR_DK].OLD, &DK[CUR_DK].CUR);
+Copy_STATES(&DK[CUR_DK].CUR, &DK[CUR_DK].NEXT);
+nextPhase = DK[CUR_DK].NEXT.faza; // сохраняем для фильтра мин. зел
+// обнуляем следующее состояние
+Clear_STATE(&DK[CUR_DK].NEXT);
+//
+if(!EQ_States(&DK[CUR_DK].CUR, &DK[CUR_DK].OLD))Event_Change_Fase();
+// перешли на ОС?
+if (TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_OC,0)){
+  POWER_SET(false);
+  }else{
+  POWER_SET(true);
+  }
+//memset(&DK[CUR_DK].NEXT,0,sizeof(STATE));
+//DK[CUR_DK].NEXT.spec_prog = SPEC_PROG_OC;
+// обратная связь
+//установили плановую
+if(DK[CUR_DK].CUR.source == PLAN)DK[CUR_DK].PLAN.cur.set = true;
+//
+if(DK[CUR_DK].CUR.source == TVP) DK[CUR_DK].TVP.cur.set = true;
+//
+if(DK[CUR_DK].CUR.source == VPU) DK[CUR_DK].VPU.cur.set = true;
+//
+if(DK[CUR_DK].CUR.source == SERVICE) DK[CUR_DK].SERVICE.cur.set = true;
+// определяем - что будем следующим
+// если спец. прога - своё состояние
+if(DK[CUR_DK].CUR.work== SPEC_PROG){
+    SET_SPEC_PROG_LEDS();
+    DK[CUR_DK].control.STA = STA_SPEC_PROG;
+    }else{
+    Calc_Tc(DK[CUR_DK].CUR.prog);
+    GEN_TAKTS();
+    SET_OSN_STATE_LEDS();
+    DK[CUR_DK].control.STA = STA_OSN_TAKT;
+    }
+// фиксируем время начала состояния
+memcpy(&DK[CUR_DK].control.start, &CT, sizeof(SYSTEMTIME));
+// определяем время окончания
+if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP)){
+  // время начала текущей фазы
+  const time_t timeStartPh = getCurrentTimeBeginPhase();    // время начала текущей фазы
+  const time_t timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;// время когда в эту фазу попали
+  DWORD TimeDelta;
+  if(timeStartPh<=timeCurrent)TimeDelta = timeCurrent - timeStartPh;
+                         else TimeDelta = timeStartPh - timeCurrent;
+  if(TimeDelta<=osn_takt_time[CUR_DK])
+    DK[CUR_DK].control.startLen = DK[CUR_DK].control.len  = osn_takt_time[CUR_DK]-TimeDelta;
+    else
+    DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = osn_takt_time[CUR_DK];
+    // YF
+    if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))osn_takt_time[CUR_DK]=1;
+    // время окончания
+    TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
+    }else{
+    //static BYTE step = 0;
+    // Для ALARM... - длительность - не определена
+    TIME_PLUS(&CT, &DK[CUR_DK].control.end, 10);
+    DK[CUR_DK].control.len = 1;
+    //установить защитное время в режиме ВПУ
+    if(DK[CUR_DK].CUR.source==VPU){
+      if(nextPhase!=DK[CUR_DK].OLD.faza){
+        const DWORD Tmin = getTimeGuard();
+        DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = Tmin;
+        // время окончания
+        TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
+        }
+      }
+    }
 return (0);
 }
-//------------------------------------------------------------------------------
+//----------------------------------------------------------------------------//
 // устанавдивает следующее состояние на удаленных СУСО
 // корректирует время окончания, еапример, для ТВП или срочных запросов
 // Включает коммуникацию и потерю связи. Учитывает общее время начала и
 // возможность продления текущего состояния из-за неустойчивой связи
 static void SET_NEXT_STATE(void)
 {
-        D_W("SET_NEXT_STATE()\n");
-        // повторение фаз после ТВП
-        if (DK[CUR_DK].CUR.source==TVP)
-          if (DK[CUR_DK].NEXT.source==PLAN)
-          {
-             if (DK[CUR_DK].CUR.prog_faza==
-                 DK[CUR_DK].NEXT.prog_faza)
-             {
-                 DK[CUR_DK].NEXT.presence=false;
-                 DK[CUR_DK].PLAN.cur.set = true;
-                 GO_PLAN();
-             }
-          }
-        // ищем фазу после ВПУ
-        if((DK[CUR_DK].CUR.source==VPU)&&(DK[CUR_DK].NEXT.source==PLAN)){
-          DK[CUR_DK].NEXT.prog_faza = getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
-          }
-        //
-        if (DK[CUR_DK].CUR.source > DK[CUR_DK].NEXT.source)
-        {
-           D_W("More prioritet\n");
-           D_W("short time\n");
-           //
-           if (DK[CUR_DK].CUR.work == SPEC_PROG)
-           {
-                memcpy(&DK[CUR_DK].control.end, &CT, sizeof(SYSTEMTIME));
-                //
-                CUR_NEXT();
-           }
-           else
-           {
-               if (DK[CUR_DK].control.STA==STA_OSN_TAKT)
-               {
-                  //int i = ;osn_takt_time
-                  if ((osn_takt_time[CUR_DK] - DK[CUR_DK].control.len) >
-                      DK[CUR_DK].PROJ->Program.fazas[DK[CUR_DK].CUR.prog_faza].Tmin)// защитный интервал по Тмин зел
-                    DK[CUR_DK].control.len = 0;//DK[CUR_DK].PROJ->Program.fazas[DK[CUR_DK].CUR.prog_faza].Tmin;
-                  // повторение фаз после ТВП
-                  if (DK[CUR_DK].CUR.source==PLAN)
-                    if (DK[CUR_DK].OLD.source==PLAN)
-                    {
-                     if (DK[CUR_DK].CUR.prog_faza==
-                       DK[CUR_DK].OLD.prog_faza)
-                        {
-                        DK[CUR_DK].control.len = 0;
-                        }
-                    }
-              }
-           }
-        }
+D_W("SET_NEXT_STATE()\n");
+// повторение фаз после ТВП
+if(DK[CUR_DK].CUR.source==TVP)
+  if(DK[CUR_DK].NEXT.source==PLAN){
+    if(DK[CUR_DK].CUR.prog_faza==DK[CUR_DK].NEXT.prog_faza){
+      DK[CUR_DK].NEXT.presence=false;
+      DK[CUR_DK].PLAN.cur.set = true;
+      GO_PLAN();
+      }
+  }
+// ищем фазу после ВПУ
+if((DK[CUR_DK].CUR.source==VPU)&&(DK[CUR_DK].NEXT.source==PLAN)){
+  DK[CUR_DK].NEXT.prog_faza = getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
+  }
+//проверка на вызов любого режима не из PLAN
+if (DK[CUR_DK].CUR.source > DK[CUR_DK].NEXT.source){
+  D_W("More prioritet\n");
+  D_W("short time\n");
+  //вызвали SPEC_PROG?
+  if (DK[CUR_DK].CUR.work == SPEC_PROG){
+    memcpy(&DK[CUR_DK].control.end, &CT, sizeof(SYSTEMTIME));
+    CUR_NEXT();
+    }else{
+    checkTimeGuard();
+    }
+  }
 }
 //------------------------------------------------------------------------------
 static void Check_Low_Level_Spec_Prog(void)

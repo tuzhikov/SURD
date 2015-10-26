@@ -1658,6 +1658,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "VSR:   %u\r\n"
         "VER:   %u\r\n"
         "ST:    %u\r\n"
+        "SLIPS  %u/%u\r\n"
         "But:   %u\r\n"
         "PhExt: %u\r\n"
         "PhR:   %u\r\n"
@@ -1677,6 +1678,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         valSURD,
         VER_MAJOR,
         stNEt,
+        pol_slips.glOk,pol_slips.glErr,
         stVB,
         stPex,
         stPR,

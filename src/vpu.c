@@ -10,6 +10,7 @@
 #include "pins.h"
 #include "dk/dk.h"
 #include "multicast/cmd_ch.h"
+#include "event/evt_fifo.h"
 /*------------ UART      ------------------------------------------------*/
 #define SYSCTL_PERIPH_UART          SYSCTL_PERIPH_UART1
 #define INT_UART                    INT_UART1
@@ -32,6 +33,8 @@ static U08         RX1buff_mem[RX1_BUFF_SIZE];
 /*VPU*/
 VPU_EXCHANGE  vpu_exch;
 TVPU dataVpu;
+static BOOL flagAutoMode = false;
+static BOOL flagVpuMode  = false;
 /*TASK*/
 #define VPU_REFRESH_INTERVAL        100
 static TN_TCB task_VPU_tcb;
@@ -471,8 +474,8 @@ if(dataVpu.myRY){
           }
         }
       break;
-    case Two:// delay 1 S
-      if(++countTime>10){
+    case Two:// delay 0.5 S
+      if(++countTime>5){
         countTime=0;
         if(PROG_FAZA == DK[CUR_DK].CUR.work)btStep = Three; // переход ПЛАН->ФАЗА (первый вызов в ВПУ)
         if(SINGLE_FAZA == DK[CUR_DK].CUR.work)btStep = For; // переход ФАЗА->ФАЗА
@@ -589,6 +592,8 @@ if (vpu_exch.m_to_s.vpu==tlOS) {
 const int phase = retNumPhase(vpu_exch.m_to_s.vpu);
 if(phase!=0xFF){
   DK_VPU_faza(phase);
+  // запись в журнал
+  if(!flagVpuMode){Event_Push_Str("Режим ВПУ");flagVpuMode = true;flagAutoMode = false;}
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -627,6 +632,8 @@ if(dataVpu.RY){ // рулим - выставляем в ДК состояния
   DK_Phase_Call();
   }else{// уходим в режим авто
   ReturnToWorkPlan(); // exit to PLAN
+  // запишем в журнал
+  if(!flagAutoMode){Event_Push_Str("Режим АВТО");flagAutoMode = true;flagVpuMode = false;}
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -662,7 +669,7 @@ static void task_VPU_func(void* param)
     // интервал 100мс.
     tn_task_sleep(VPU_REFRESH_INTERVAL);
     // получить статус СУРД
-    vpu_exch.m_to_s.statusNet =  getFlagStatusSURD(); // статус СУРД
+    vpu_exch.m_to_s.statusNet = getFlagStatusSURD(); // статус СУРД
     // опрос ВПУ
     answer = DataExchange();
 

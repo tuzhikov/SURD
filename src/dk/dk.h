@@ -136,6 +136,7 @@ typedef struct __CONTROLLER
         BYTE            prom_time[MaxDirects]; //таймеры
         //
         DWORD           len; //таймер текущего состояния
+        DWORD           startLen; //таймер стартового состояния
         //
         SYSTEMTIME      start; //время начала состояния
         SYSTEMTIME      end;   //время окончания текущего состояния

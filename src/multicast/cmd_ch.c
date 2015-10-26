@@ -45,6 +45,8 @@ static u16_t            g_cmd_ch_port;
 static struct ip_addr   g_security_ipaddr;
 // состояния всех ВПУ по сети
 VIR_VPU vir_vpu;
+// промахи опроса по UDP статистика
+POL_SLIPS pol_slips = {0};
 // local functions -----------------------------------------------------------//
 static err_t udp_native_sendbuf(struct udp_pcb* pcb, char const* buf, int buf_sz, struct ip_addr* raddr, u16_t rport);
 static void create_cmd_nfo_list();
@@ -453,7 +455,6 @@ if(typeCmd==SET_STATUS){
   const long stnet = retStatusSurdSend();// статус СУРД общий для сети
   const long sdnet = retStatusNetSend(); // статус NET общий для сети
   const long retTime = retTimePhase(); // остаток времени для работы фазы
-  const long retGSD = 0;//DK[CUR_DK].StatusSurd.globalActionSURD;
 
   snprintf(pStr,leng,
         "setstatussurd\r"
@@ -461,14 +462,12 @@ if(typeCmd==SET_STATUS){
         "PASSW: %u\r\n"
         "ST:    %u\r\n"
         "SD:    %u\r\n"
-        "TM:    %u\r\n"
-        "GSD:   %u\r\n",
+        "TM:    %u\r\n",
         idp,
         passw,
         stnet,
         sdnet,
-        retTime,
-        retGSD);
+        retTime);
   return true;
   }
 if(typeCmd==SET_PHASE){
@@ -481,7 +480,6 @@ if(typeCmd==SET_PHASE){
     const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
     const long retTime = retTimePhase(); // остаток времени для работы фазы
-    const long retGSD = 0;//DK[CUR_DK].StatusSurd.globalActionSURD;
 
     snprintf(pStr,leng,
         "setphaseudp\r"
@@ -492,8 +490,7 @@ if(typeCmd==SET_PHASE){
         "SD:    %u\r\n"
         "PHASE: %u\r\n"
         "LED:   %u\r\n"
-        "TM:    %u\r\n"
-        "GSD:   %u\r\n",
+        "TM:    %u\r\n",
         id,
         idp,
         passw,
@@ -501,8 +498,7 @@ if(typeCmd==SET_PHASE){
         sdnet,
         phase,
         stLed,
-        retTime,
-        retGSD
+        retTime
          );
   return true;
   }
@@ -528,22 +524,18 @@ return retNull;
 // отработаем запросы сетевого статуса
 Type_Return masterDk(const TPROJECT *ret)
 {
-const WORD IPPORT = ret->surd.PORT;
+const WORD IPPORT     = ret->surd.PORT;
 const WORD CountRepet = ret->surd.Count;
-const WORD TimeDelay = (ret->surd.TimeDelay)>(((WORD)ret->maxDK)*CountRepet*100)?            // сравним mS
-                                  (ret->surd.TimeDelay/100):(((WORD)ret->maxDK)*CountRepet); // время задержки в 0,1S
 static char BuffCommand[250];
 static int stepMaster = Null;
-static BYTE indeDk = 1,countsend=0;// счет indeDk со второго ДК
+static BYTE indeDk = 1,countsend=0,countsendOk=0,countsendErr=0;// счет indeDk со второго ДК
 static BYTE countmessageOk = 0,countmessageErr = 0;
 static BYTE countSrdOk=0,countSrdError=0;
-static WORD countTime = 0;
 static BOOL fMessageErr = false,fMessageOk = false;
 static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
 struct ip_addr ipaddr;
 
 retModeNoPolling();// polling
-countTime++;// считаем время в 0,1сек.
 
 switch(stepMaster)
   {
@@ -551,14 +543,13 @@ switch(stepMaster)
     clearStatusOneDk(indeDk);// нулим
     clearStSurdOneDk(indeDk);// нулим
     setStatusOneDk(0,getFlagStatusSURD(),getValueFlagLocalStatusSURD()); // status master, статус СУРД
-    countsend =0;
+    countsendErr += countsend; // сохраним промахи предыдущего обмена
+    countsend = 0;
     if(retAnswerVPU()){
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
-                  countTime = TimeDelay; // для этой команды таймер не нужен
                   }else{
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_STATUS);// опрос статуса
                   }
-
   case One:
     if(retSurdIP(indeDk,&ipaddr)==retOk){
       udp_native_sendbuf(g_cmd_ch_pcb,BuffCommand,strlen(BuffCommand),&ipaddr,IPPORT);
@@ -567,26 +558,23 @@ switch(stepMaster)
       stepMaster=Three;
       }
     return retNull;
-  case Two: // answer
+  case Two: // timeout OK проверяем ответ
     stepMaster=One;
     if(getStatusOneDk(indeDk)){//ответ получен
-      if(++indeDk<ret->maxDK){
-        stepMaster=Null;}
-        else{
-        stepMaster=Three;}
+      if(++indeDk<ret->maxDK){stepMaster=Null;}
+                         else{stepMaster=Three;}
+      countsendOk++;// считаем удачные попытки ответа
       }
-    if(++countsend>CountRepet){ // ответа нет CountRepet раз
+    if(++countsend>CountRepet){ // ответа нет CountRepet раз выходим
       stepMaster = Three;return retError;
       }
     return retNull;
-  case Three: // отрабатываем время формирования СУРД
-    stepMaster=Seven;
-    if(countTime>=TimeDelay){
-      countTime = 0;   // сбросс таймера
-      stepMaster=Five; // формируем ответы
-      }
-    return retNull;
-  case Five:
+  case Three:
+    stepMaster=Five;
+    pol_slips.glOk  = countsendOk;
+    pol_slips.glErr = countsendErr;
+    countsendOk = countsendErr = 0;
+  case Five: // Опрошены все ДК, формируем статус СУРД
     stepMaster=Seven;
     // все ДК в сети
     if(getAllDk()){
@@ -606,7 +594,6 @@ switch(stepMaster)
         if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
         }
       }
-    retModeNoPolling();// polling установка флагов
     // все могут работать в СУРД
     if(getAllSURD()){
       setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
@@ -617,8 +604,6 @@ switch(stepMaster)
           if(!fMessageOkSrd){Event_Push_Str("SUCCESS: СУРД ОК");fMessageOkSrd = true;}
           }
       }else{
-      // timer reset укоряем процесс опроса
-      //if(getFlagNetwork())
       setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
       setFlagStatusSURD(false);   // уберем флаг СУРД по сети
       if(++countSrdError>3){
@@ -627,11 +612,11 @@ switch(stepMaster)
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
       }
-  case Seven:
+  case Seven: // exit OK
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
     return retOk;
-  default:
+  default:   // exit Error
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
     return retError;
@@ -641,8 +626,7 @@ switch(stepMaster)
 Type_Return slaveDk(const TPROJECT *ret)
 {
 const WORD CountRepet = ret->surd.Count; // кол повторений запросов
-const WORD TimeDelay = (ret->surd.TimeDelay)>(((WORD)ret->maxDK)*CountRepet*100)?            // сравним mS
-                                  (ret->surd.TimeDelay/100):(((WORD)ret->maxDK)*CountRepet); // время задержки в 0,1S
+const WORD TimeDelay = ((WORD)ret->maxDK)*CountRepet; // общее время на формирование СУРД
 static BYTE stepSlave = Null,countTime = 0;
 static BYTE countOk = 0,countError = 0;
 static BYTE countSrdOk = 0,countSrdError = 0;
@@ -716,17 +700,18 @@ if(ret->maxDK>1){ // в проекте больше одного ДК
 /*основная функция потока CMD ------------------------------------------------*/
 static void task_cmd_func(void* param)
 {
-  const int TimeDelay = 100;//100 ms время ожидания
 
   for (;;)
     {
         struct cmd_raw* cmd_p;
+        const TPROJECT *pPr = retPointPROJECT();   // получить данные проекта
+        const int DelayTime = (pPr->surd.TimeDelay>900)? 900:pPr->surd.TimeDelay;
+
         // проверка очереди выход по времени
-        const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,TimeDelay);//TN_WAIT_INFINITE
+        const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,DelayTime);//TN_WAIT_INFINITE
         hw_watchdog_clear(); // clear WD
         // таймаут
         if(answer==TERR_TIMEOUT){
-          const TPROJECT *pPr = retPointPROJECT();   // получить данные
           PollingDkLine(pPr);
           }else{ // есть что то в буффере UDP
           // есть ошибки
