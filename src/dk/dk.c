@@ -820,16 +820,23 @@ static void GEN_TAKTS(void)
         {
           //—œ≈÷. ‘¿«¿-> —œ≈÷. ‘¿«¿
           if (DK[CUR_DK].NEXT.work == SINGLE_FAZA)
-            Build_Takts(NO_PROG, NO_PROG, DK[CUR_DK].CUR.faza, DK[CUR_DK].NEXT.faza);
+            Build_Takts(DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.faza,
+                        DK[CUR_DK].NEXT.faza);
           //////
           //—œ≈÷. ‘¿«¿-> ‘¿«¿ œ–Œ√–¿ÃÃ€
            if (DK[CUR_DK].NEXT.work == PROG_FAZA)
-            Build_Takts(NO_PROG, DK[CUR_DK].NEXT.prog, DK[CUR_DK].CUR.faza,
+            Build_Takts(DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].NEXT.prog,
+                        DK[CUR_DK].CUR.faza,
                         DK[CUR_DK].NEXT.prog_faza);
           //
            //—œ≈÷. ‘¿«¿-> —œ≈÷. œ–Œ√–¿ÃÃ¿
            if (DK[CUR_DK].NEXT.work == SPEC_PROG)
-            Build_Takts(NO_PROG, NO_PROG, DK[CUR_DK].CUR.faza,
+            Build_Takts(DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.faza,
                         DK[CUR_DK].NEXT.faza);
 
         }
@@ -839,15 +846,21 @@ static void GEN_TAKTS(void)
           // .... -> —œ≈÷. ‘¿«¿
           if (DK[CUR_DK].NEXT.work == SINGLE_FAZA)
             Build_Takts(DK[CUR_DK].CUR.prog,
-                        NO_PROG, DK[CUR_DK].CUR.prog_faza, DK[CUR_DK].NEXT.faza);
+                        DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.prog_faza,
+                        DK[CUR_DK].NEXT.faza);
           // ......-> ‘¿«¿ œ–Œ√–¿ÃÃ€
            if (DK[CUR_DK].NEXT.work == PROG_FAZA)
-            Build_Takts(DK[CUR_DK].CUR.prog, DK[CUR_DK].NEXT.prog,
-                        DK[CUR_DK].CUR.prog_faza, DK[CUR_DK].NEXT.prog_faza);
+            Build_Takts(DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].NEXT.prog,
+                        DK[CUR_DK].CUR.prog_faza,
+                        DK[CUR_DK].NEXT.prog_faza);
           // .... -> —œ≈÷. œ–Œ√–¿ÃÃ¿
           if (DK[CUR_DK].NEXT.work == SPEC_PROG)
-            Build_Takts(DK[CUR_DK].CUR.prog, NO_PROG,
-                        DK[CUR_DK].CUR.prog_faza, DK[CUR_DK].NEXT.faza);
+            Build_Takts(DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.prog,
+                        DK[CUR_DK].CUR.prog_faza,
+                        DK[CUR_DK].NEXT.faza);
         }
 }
 //------------------------------------------------------------------------------

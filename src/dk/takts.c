@@ -40,10 +40,10 @@ return 0;
 // получение номера шаблонной фазы с программы и фазы в рпограмме
 // 2 варианта
 // 1) реальная программа и cur_faz - номер в ней
-// 2) нет программы cur_faz - номер шаблонной фазы
+// 2) нет программы cur_faz - номер шаблонной фазы (нельзя использоывать при вызове ВПУ, вызываем не существующий шаблон)
 static int Get_SH_FAZ(const int c_prog,const int cur_faz)
 {
-int sh_faza=0;
+int sh_faza = 0;
 //
 if (c_prog!=NO_PROG){
   sh_faza = Locate_Prog(c_prog)->fazas[cur_faz].NumFasa;
