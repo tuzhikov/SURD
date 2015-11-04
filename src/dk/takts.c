@@ -44,12 +44,14 @@ return 0;
 static int Get_SH_FAZ(const int c_prog,const int cur_faz)
 {
 int sh_faza = 0;
-//
-if (c_prog!=NO_PROG){
+// old version
+/*if (c_prog!=NO_PROG){
   sh_faza = Locate_Prog(c_prog)->fazas[cur_faz].NumFasa;
   }else
-    sh_faza = cur_faz;
+    sh_faza = cur_faz;*/
 //
+sh_faza = project[CUR_DK]->Program.fazas[cur_faz].NumFasa; // получить фазу по шаблону
+
 return(sh_faza);
 }
 /*----------------------------------------------------------------------------*/

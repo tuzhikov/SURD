@@ -35,6 +35,8 @@ VPU_EXCHANGE  vpu_exch;
 TVPU dataVpu;
 static BOOL flagAutoMode = false;
 static BOOL flagVpuMode  = false;
+static BYTE stUpdataButtonPhase  = Null;// режимы работы кнопок РУ и АВТО
+static BYTE stUpdataButtonManual = Null;
 /*TASK*/
 #define VPU_REFRESH_INTERVAL        100
 static TN_TCB task_VPU_tcb;
@@ -294,6 +296,9 @@ static void ClearStatusButton(void)
     dataVpu.rButton[i].On=bOff;
     }
   dataVpu.bOnIndx=NO_EVENTS; // сбрасываем все события по нажатой кнопке
+  // автоматы опроса в начальное сотояние
+  stUpdataButtonPhase  = Null;
+  stUpdataButtonManual = Null;
 }
 /*----------------------------------------------------------------------------*/
 /*Clear status LED Phase*/
@@ -441,21 +446,31 @@ int ret_f=0xFF;
 if(vpu<tlOS)ret_f=(int)vpu;
 return(ret_f);
 }
+/*---------- ------------------------------------------------------------------*/
+// мы в фазе, можно управлять
+// вернем true,если кнопки надо блокировать
+static BOOL ButtonBlok(void)
+{
+if(DK[CUR_DK].NEXT.source==PLAN){  // переходим в ПЛАН
+      if(DK[CUR_DK].CUR.source==PLAN)return false;
+      }
+      else if(dataVpu.bOnIndx==NO_EVENTS)return false;
+return true;
+}
 /*----------------------------------------------------------------------------*/
 /*update the structure TVPU */
 // Обрабатываем нажатия клавиш
 // Только Одна кнопка может быть нажата в текущий момент!
 static void updateSatusButton(void)
 {
-static BYTE btStat = Null;// режимы работы кнопок РУ и АВТО
-static BYTE btStep = Null;
+//static BYTE btStat = Null;// режимы работы кнопок РУ и АВТО
+//static BYTE btStep = Null;  //stUpdataSatusButtonManual
 static BYTE countTime = 0; // increment 0.1S
-
-dataVpu.stepbt = btStep;
+dataVpu.stepbt = stUpdataButtonPhase;
 // обрабатываем кнопки фаз только активного ВПУ
 if(dataVpu.myRY){
 
-  switch(btStep)
+  switch(stUpdataButtonPhase)
     {
     // переводим ДК в режим ВПУ
     case Null:
@@ -469,7 +484,7 @@ if(dataVpu.myRY){
           dataVpu.rButton[i].On = bOn;
           // зафиксировали кнопку <status On>
           dataVpu.bOnIndx = i;
-          btStep = Two;
+          stUpdataButtonPhase = Two;
           break;
           }
         }
@@ -477,75 +492,107 @@ if(dataVpu.myRY){
     case Two:// delay 0.5 S
       if(++countTime>5){
         countTime=0;
-        if(PROG_FAZA == DK[CUR_DK].CUR.work)btStep = Three; // переход ПЛАН->ФАЗА (первый вызов в ВПУ)
-        if(SINGLE_FAZA == DK[CUR_DK].CUR.work)btStep = For; // переход ФАЗА->ФАЗА
+        if(PROG_FAZA == DK[CUR_DK].CUR.work)  stUpdataButtonPhase = Three; // переход ПЛАН->ФАЗА (первый вызов в ВПУ)
+        if(SINGLE_FAZA == DK[CUR_DK].CUR.work)stUpdataButtonPhase = For; // переход ФАЗА->ФАЗА
         }
       break;
     case Three: //переход ПЛАН->ФАЗА
       if((DK[CUR_DK].CUR.source==VPU)&&(SINGLE_FAZA == DK[CUR_DK].CUR.work)){
         if(dataVpu.nextPhase==DK[CUR_DK].CUR.faza){
-          btStep = For;}
+          stUpdataButtonPhase = For;}
         }
       break;
     case For: // переход ФАЗА->ФАЗА
       // защита от зависания в этом шаге машины
-      if((DK[CUR_DK].CUR.source==PLAN)||(dataVpu.bOnIndx==0xFF)){btStep = Null;break;}
+      if((DK[CUR_DK].CUR.source==PLAN)||(dataVpu.bOnIndx==0xFF)){stUpdataButtonPhase = Null;break;}
       //отправляем на вызов фазы
       dataVpu.nextPhase=dataVpu.bOnIndx;
       // проверяем переход по фазам
-      if(dataVpu.nextPhase==DK[CUR_DK].CUR.faza){btStep = Five;}
+      if(dataVpu.nextPhase==DK[CUR_DK].CUR.faza){stUpdataButtonPhase = Five;}
       break;
     case Five:
     default:
       ClearStatusLedPhase();
       ClearStatusButtonPhase();
-      btStep = One; // на опрос кнопок
+      stUpdataButtonPhase = One; // на опрос кнопок
       break;
     }
   }else{
   // reset satus button phase
   ClearStatusButtonPhase();
-  btStep = Null;
+  stUpdataButtonPhase = Null;
   }
 // тригерный режим конопок РУ и АВТО
-  if(btStat==Null){
-     if(dataVpu.rButton[ButManual].On==bUp){
-      dataVpu.rButton[ButManual].On=bOn;
-      dataVpu.rButton[ButAUTO].On=bOff;
-      btStat=One;
-      }
-    }else{
-     if(btStat==One){
-       if(dataVpu.rButton[ButAUTO].On==bUp){
-        dataVpu.rButton[ButAUTO].On=bOn;
+  if(stUpdataButtonManual==Null)//кнопка РУ   retButtonOk dataVpu.bOnIndx!=NO_EVENTS
+     {
+       if(ButtonBlok()){ // не обрабатываем кнопки, пока едет переход к фазе
+         dataVpu.rButton[ButAUTO].On  =bOn;
+         dataVpu.rButton[ButManual].On=bOff;
+         }
+         else if((dataVpu.rButton[ButManual].On==bUp)||(dataVpu.rButton[ButManual].On==bOn)){
+         dataVpu.rButton[ButManual].On=bOn;
+         dataVpu.rButton[ButAUTO].On=bOff;
+         stUpdataButtonManual=One;
+         }
+    }
+    else if(stUpdataButtonManual==One)//ждем завершение перехода
+      {
+      if(DK[CUR_DK].CUR.source==VPU){
+        dataVpu.rButton[ButAUTO].On=bOff;
         dataVpu.rButton[ButManual].On=bOff;
-        btStat=Null;
+        stUpdataButtonManual=Two;
         }
-      }else{
-      btStat=Null;
+      }
+    else if(stUpdataButtonManual==Two)//кнопка AUTO
+      {
+       if(ButtonBlok()){
+          dataVpu.rButton[ButManual].On=bOn;
+          dataVpu.rButton[ButAUTO].On=bOff;
+          }
+          else if(dataVpu.rButton[ButAUTO].On==bUp){
+          dataVpu.rButton[ButAUTO].On = bOn;
+          dataVpu.rButton[ButManual].On=bOff;
+          stUpdataButtonManual=Three;
+          }
+      }
+     else if(stUpdataButtonManual==Three)//ждем завершение перехода
+      {
+      if(DK[CUR_DK].CUR.source==PLAN){
+         dataVpu.rButton[ButAUTO].On=bOff;
+         dataVpu.rButton[ButManual].On=bOff;
+         stUpdataButtonManual=Null;
+         }
+      }
+     else
+      {//default
+      stUpdataButtonManual=Null;
       dataVpu.rButton[ButAUTO].On=bOff;
       dataVpu.rButton[ButManual].On=bOff;
       }
-     //был сбросс сотояния кнопок
-     if((dataVpu.rButton[ButAUTO].On==bOff)&&
-       (dataVpu.rButton[ButManual].On==bOff)){
-       btStat=Null;
-       }
-    }
+
 }
 /*----------------------------------------------------------------------------*/
 static void showManualLED(void)
 {
 // LED AUTO  & LED MANUAL
 if(dataVpu.RY){ // работает другое ВПУ или уже включили РУ
-  dataVpu.led[ButAUTO].On = ledOff; // LED AUTO
+  // LED AUTO
+  dataVpu.led[ButAUTO].On = ledOff;
+  // LED РУ
+   if(DK[CUR_DK].CUR.source==VPU)dataVpu.led[ButManual].On = ledOn;
+                            else dataVpu.led[ButManual].On = ledBlink2;
+  /*
   if(dataVpu.myRY)
     dataVpu.led[ButManual].On = ledOn;    // мы рулим
     else
     dataVpu.led[ButManual].On = ledBlink2;// не мы рулим
+  */
   }else{
-  dataVpu.led[ButAUTO].On   = ledOn;  // LED AUTO
-  dataVpu.led[ButManual].On = ledOff; // LED MANUAL
+  // LED AUTO
+  if(DK[CUR_DK].CUR.source==PLAN)dataVpu.led[ButAUTO].On = ledOn;
+                            else dataVpu.led[ButAUTO].On = ledBlink2;
+  // LED MANUAL
+  dataVpu.led[ButManual].On = ledOff;
   }
 }
 /*----------------------------------------------------------------------------*/

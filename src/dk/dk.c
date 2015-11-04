@@ -156,6 +156,9 @@ const int timeStop    = timeEnd->tm_hour*3600 + timeEnd->tm_min*60 + timeEnd->tm
 
 if(timeCurrent==timeStop)
   DK[CUR_DK].control.len = 0;
+  //else
+  //DK[CUR_DK].control.len = timeStop - timeCurrent;
+
 return(!DK[CUR_DK].control.len);
 }
 //------------------------------------------------------------------------------
@@ -820,22 +823,22 @@ static void GEN_TAKTS(void)
         {
           //СПЕЦ. ФАЗА-> СПЕЦ. ФАЗА
           if (DK[CUR_DK].NEXT.work == SINGLE_FAZA)
-            Build_Takts(DK[CUR_DK].CUR.prog,
-                        DK[CUR_DK].CUR.prog,
+            Build_Takts(NO_PROG,
+                        NO_PROG,
                         DK[CUR_DK].CUR.faza,
                         DK[CUR_DK].NEXT.faza);
           //////
           //СПЕЦ. ФАЗА-> ФАЗА ПРОГРАММЫ
            if (DK[CUR_DK].NEXT.work == PROG_FAZA)
-            Build_Takts(DK[CUR_DK].CUR.prog,
+            Build_Takts(NO_PROG,
                         DK[CUR_DK].NEXT.prog,
                         DK[CUR_DK].CUR.faza,
                         DK[CUR_DK].NEXT.prog_faza);
           //
            //СПЕЦ. ФАЗА-> СПЕЦ. ПРОГРАММА
            if (DK[CUR_DK].NEXT.work == SPEC_PROG)
-            Build_Takts(DK[CUR_DK].CUR.prog,
-                        DK[CUR_DK].CUR.prog,
+            Build_Takts(NO_PROG,
+                        NO_PROG,
                         DK[CUR_DK].CUR.faza,
                         DK[CUR_DK].NEXT.faza);
 
@@ -846,7 +849,7 @@ static void GEN_TAKTS(void)
           // .... -> СПЕЦ. ФАЗА
           if (DK[CUR_DK].NEXT.work == SINGLE_FAZA)
             Build_Takts(DK[CUR_DK].CUR.prog,
-                        DK[CUR_DK].CUR.prog,
+                        NO_PROG,
                         DK[CUR_DK].CUR.prog_faza,
                         DK[CUR_DK].NEXT.faza);
           // ......-> ФАЗА ПРОГРАММЫ
@@ -858,7 +861,7 @@ static void GEN_TAKTS(void)
           // .... -> СПЕЦ. ПРОГРАММА
           if (DK[CUR_DK].NEXT.work == SPEC_PROG)
             Build_Takts(DK[CUR_DK].CUR.prog,
-                        DK[CUR_DK].CUR.prog,
+                        NO_PROG,
                         DK[CUR_DK].CUR.prog_faza,
                         DK[CUR_DK].NEXT.faza);
         }
@@ -1111,8 +1114,8 @@ static void Event_Change_Fase(void)
 //получить время защитное
 static DWORD getTimeGuard(void)
 {
-return(DK[CUR_DK].PROJ->guard.green_min<=DK[CUR_DK].PROJ->guard.red_min)?
-           (DK[CUR_DK].PROJ->guard.green_min):(DK[CUR_DK].PROJ->guard.red_min);
+return(DK[CUR_DK].PROJ->guard.green_min<DK[CUR_DK].PROJ->guard.red_min)?
+           (DK[CUR_DK].PROJ->guard.red_min):(DK[CUR_DK].PROJ->guard.green_min);
 }
 //----------------------------------------------------------------------------//
 static void checkTimeGuard(void)
@@ -1238,7 +1241,7 @@ if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP)){
     TIME_PLUS(&CT, &DK[CUR_DK].control.end, 10);
     DK[CUR_DK].control.len = 1;
     //установить защитное время в режиме ВПУ
-    if(DK[CUR_DK].CUR.source==VPU){
+    if((DK[CUR_DK].CUR.source==VPU)&&(DK[CUR_DK].OLD.source==VPU)){
       if(nextPhase!=DK[CUR_DK].OLD.faza){
         const DWORD Tmin = getTimeGuard();
         DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = Tmin;
