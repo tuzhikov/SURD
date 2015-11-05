@@ -292,7 +292,8 @@ typedef struct _TPROJECT{
    TCOMMENT_EX          comments;
    TJORNAL              jornal;                         // настройки журналирования
    TSURD                surd;                           // настройки СУРД
-   unsigned long        CRC32_programs;                 //от структуры программ
+   unsigned long        IDP_CRC32;                      // контрольная сумма общего проетка СУРД
+   unsigned long        CRC32_programs;                 // контрольная сумма программ
    unsigned long        CRC32;
   }TPROJECT;
 /*----------------------------------------------------------------------------*/

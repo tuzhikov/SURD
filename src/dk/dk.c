@@ -154,10 +154,8 @@ const SYSTEMTIME *timeEnd = &DK[CUR_DK].control.endPhase;
 const int timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;
 const int timeStop    = timeEnd->tm_hour*3600 + timeEnd->tm_min*60 + timeEnd->tm_sec;
 
-if(timeCurrent==timeStop)
-  DK[CUR_DK].control.len = 0;
-  //else
-  //DK[CUR_DK].control.len = timeStop - timeCurrent;
+if(timeCurrent>=timeStop)
+    DK[CUR_DK].control.len = 0;
 
 return(!DK[CUR_DK].control.len);
 }

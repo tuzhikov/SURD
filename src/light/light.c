@@ -57,6 +57,10 @@ int light_time_out=1;
 struct TCRC_IDP{
   unsigned long crc;
 } crc_idp;
+/*------local functions ------------------------------------------------------*/
+static BOOL validProjectRAM(void);
+static BOOL validProjectALL(void);
+static void checksumProject(void);
 //------------------------------------------------------------------------------
 void POWER_SET(const BOOL stat)
 {
@@ -89,7 +93,7 @@ BOOL ligh_load_init(int  fin_try)
 {
     //
     memset(&DK[CUR_DK],0,sizeof(DK[CUR_DK]));
-    // clear crc
+    // clear structure global IDP project
     memset(&crc_idp,0,sizeof(crc_idp));
     // FLASH_PROGS
     flash_rd(FLASH_PROGRAM, sizeof(TPROJECT)*CUR_DK,
@@ -498,9 +502,9 @@ static void Check_LET(void)
         //
         cur_time.tm_hour = time.hour;
         cur_time.tm_mday = time.date;
-        cur_time.tm_min = time.min;
-        cur_time.tm_sec = time.sec;
-        cur_time.tm_mon = time.month;
+        cur_time.tm_min  = time.min;
+        cur_time.tm_sec  = time.sec;
+        cur_time.tm_mon  = time.month;
         cur_time.tm_year = time.year;
         //
         int i_sec = Seconds_Between(&L_ERR_TIME, &cur_time);
@@ -540,9 +544,9 @@ for (;;)
     // обновить
     cur_time.tm_hour = time.hour;
     cur_time.tm_mday = time.date;
-    cur_time.tm_min = time.min;
-    cur_time.tm_sec = time.sec;
-    cur_time.tm_mon = time.month;
+    cur_time.tm_min  = time.min;
+    cur_time.tm_sec  = time.sec;
+    cur_time.tm_mon  = time.month;
     cur_time.tm_year = time.year;
     //
     if (Next_Try_wait)
@@ -634,6 +638,8 @@ for (;;)
           b_ch = Check_Chan();
           if(b_ch){
             Next_Try(b_ch);break;}
+          // провка проекта, он слетает
+          checksumProject();
           // здесь организовано миганине силовых выходов вот так!(в проетке его нет)
           /*for (int i_dk=0; i_dk<dk_num; i_dk++)
                 {
@@ -659,3 +665,77 @@ unsigned long retCRC32()
 return crc_idp.crc;
 }
 /*----------------------------------------------------------------------------*/
+// проверка проекта
+// проверка CRC, размера
+static BOOL validProjectRAM(void)
+{
+const unsigned long crc =crc32_calc((unsigned char*)&PROJ[CUR_DK],sizeof(PROJ[CUR_DK])-sizeof(PROJ[CUR_DK].CRC32));
+if(PROJ[CUR_DK].ProjectSize == sizeof(PROJ[CUR_DK])){
+  if(crc==PROJ[CUR_DK].CRC32){
+    crc_idp.crc = PROJ[CUR_DK].IDP_CRC32; // IDP дл€ передачи по сети.
+    return true;
+    }
+  }
+return false;
+}
+static BOOL validProjectALL(void)
+{
+// check error load flash
+memset(&PROJ,0,sizeof(PROJ)); // чистим структуру проекта
+memset(&crc_idp,0,sizeof(crc_idp));
+// read project
+flash_rd(FLASH_PROGRAM,sizeof(TPROJECT)*CUR_DK,(unsigned char*)&PROJ[CUR_DK], sizeof(PROJ[CUR_DK]));
+// calcul crc32
+const unsigned long crc=crc32_calc((unsigned char*)&PROJ[CUR_DK],sizeof(PROJ[CUR_DK])-sizeof(PROJ[CUR_DK].CRC32));
+// read CRC32 programms
+unsigned long crc_progs;
+flash_rd(FLASH_PROGS,sizeof(TPROGRAMS)*(CUR_DK+1)-sizeof(crc_progs),(unsigned char*)&crc_progs,sizeof(crc_progs));
+// check project
+if(PROJ[CUR_DK].ProjectSize == sizeof(PROJ[CUR_DK])){
+  if(crc==PROJ[CUR_DK].CRC32){
+    if(crc_progs==PROJ[CUR_DK].CRC32_programs){
+      // сохранить параметры IDP
+      crc_idp.crc = PROJ[CUR_DK].IDP_CRC32;
+      return true;
+      }
+    }
+  }
+return false;
+}
+/*----------------------------------------------------------------------------*/
+// вызываетьс€ из потока 0.5 sec.
+static void checksumProject(void)
+{
+static BYTE step = Null;
+static BYTE timeCall = 0;
+static BYTE CountError = 0;
+
+if(step==Null)
+  {
+  if(++timeCall>10){ // проверка проекта 1 раз 5 сек
+    timeCall = 0;
+    if(!validProjectRAM()){ // проблемы с проектов в ќ«”
+      if(!validProjectALL()){ // проблемы с проектом в флешь
+        if(CountError++){ // проверка второй копии проекта
+          Event_Push_Str("јвари€ CRC проекта копи€ 2!");
+          step=One; // уходим в отключение
+          return;
+          }
+        // здесь должны подгрузить вторую версию проета
+        Event_Push_Str("јвари€ CRC проекта копи€ 1!");
+        return;
+        }
+      }
+    }
+  }
+else if(step==One) // авари€ все отключаем
+  {
+  DK_HALT();
+  }
+else // dafault
+  {
+  step=Null;
+  timeCall = 0;
+  CountError = 0;
+  }
+}
