@@ -44,7 +44,6 @@ static struct eth_addr          g_hwaddr;
 static enum net_mode            g_net_mode;
 static struct ip_addr           g_ipaddr, g_ipmsk, g_ipgw, g_cmd_ip;
 static unsigned                 g_cmd_port;
-
 // local functions -----------------------------------------------------------//
 static void process_get_cmd(struct cmd_raw* cmd_p, char const* par,int argc, char** argv);
 static void process_set_cmd(struct cmd_raw* cmd_p, char const* par, char const* val);
@@ -504,6 +503,7 @@ void cmd_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
     crc1 = crc32_calc((unsigned char*)buf, len);
 
     p_try = 0;
+    // копия первая
     while (p_try++ < 5)
     {
         flash_wr_direct(addr, buf, len);
@@ -515,11 +515,28 @@ void cmd_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
         if (crc1 == crc2)
             break;
     }
+    // проверка
     if (p_try >= 5)
         goto err1;
+    // копия вторая смещение sizeof(TPROJECT)
+    if(addr<(FLASH_PREF_SIZE+FLASH_PROGRAM_SIZE)){
+      while (p_try++ < 5)
+        {
+        flash_wr_direct(addr+sizeof(TPROJECT), buf, len);
 
-    DK[0].flash = true;
+        flash_rd_direct(addr+sizeof(TPROJECT), buf1, len);
+
+        crc2 = crc32_calc((unsigned char*)buf1, len);
+
+        if (crc1 == crc2)
+            break;
+        }
+      // проверка
+      if (p_try >= 5)
+          goto err1;
+      }
     //
+    DK[0].flash = true;
     udp_send_success(cmd_p);
     return;
 
@@ -545,6 +562,31 @@ if((DK[CUR_DK].OSHARD)||(DK[CUR_DK].OSSOFT))
       udp_sendstr(cmd_p, "NO TUMBLER or OS!");
 }
 //------------------------------------------------------------------------------
+// запись первой копии проекта
+/*void writeOneProjet(void)
+{
+// В addr  -только смешение. добавляем базовый адрес
+addr += get_region_start(FLASH_PROGRAM);
+//
+snprintf((char*)s_addr, sizeof(s_addr), "%#X",addr);
+l_argv[0] = s_addr;
+//
+l_argv[1] = argv[1];
+l_argv[2] = argv[2];
+// если длина==0 - просто тест
+if (argv[1][0]=='0')
+  {
+    udp_send_success(cmd_p);
+  }
+  else
+  {
+    cmd_flashwr_func(cmd_p, 3, l_argv);
+  }
+}
+// звпись второй копии проекта
+void writeTwoProjet(void)
+{
+} */
 // программирвоание проекта
 void cmd_proj_flashwr_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {

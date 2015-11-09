@@ -12,8 +12,6 @@
 
 #include "../debug/debug.h"
 
-
-
 #define struct_region_nfo_t(n)      \
 struct n ## _region_nfo_t           \
 {                                   \
@@ -29,10 +27,10 @@ static struct flash_region_nfo_t const g_flash[FLASH_CNT] =
 {
     { FLASH_PREF,              0,                 FLASH_PREF_SIZE },
     { FLASH_PROGRAM,           FLASH_PREF_SIZE,   FLASH_PROGRAM_SIZE },
-    { FLASH_PROGS,             FLASH_PREF_SIZE+FLASH_PROGRAM_SIZE,   FLASH_PROGS_SIZE},    
+    { FLASH_PROGS,             FLASH_PREF_SIZE+FLASH_PROGRAM_SIZE,   FLASH_PROGS_SIZE},
     { FLASH_EVENT,             FLASH_PREF_SIZE+FLASH_PROGRAM_SIZE+FLASH_PROGS_SIZE,   FLASH_EVENT_SIZE},
-    
-    
+
+
     { FLASH_FREE,              FLASH_PREF_SIZE+FLASH_PROGRAM_SIZE+FLASH_EVENT_SIZE+FLASH_PROGS_SIZE,
           FLASH_SZ - FLASH_PREF_SIZE - FLASH_PROGRAM_SIZE - FLASH_EVENT_SIZE -FLASH_PROGS_SIZE}
 };
@@ -44,7 +42,7 @@ static struct iflash_region_nfo_t const g_iflash[IFLASH_CNT] =
 };
 
 unsigned char flash_init();
-// вернуть адрес 
+// вернуть адрес
 unsigned long get_region_start(enum flash_region_t rg)
 {
   return (g_flash[rg].rg_start);

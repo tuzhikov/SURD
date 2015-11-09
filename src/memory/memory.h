@@ -16,7 +16,6 @@
 //#define FLASH_EVENT_SIZE   192
 #define FLASH_PROGS_SIZE   122880*4
 
-
 unsigned char memory_init();
 void flash_erase(void);
 

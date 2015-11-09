@@ -59,7 +59,7 @@ struct TCRC_IDP{
 } crc_idp;
 /*------local functions ------------------------------------------------------*/
 static BOOL validProjectRAM(void);
-static BOOL validProjectALL(void);
+static BOOL validProjectALL(const BOOL flFlash);
 static void checksumProject(void);
 //------------------------------------------------------------------------------
 void POWER_SET(const BOOL stat)
@@ -105,8 +105,6 @@ BOOL ligh_load_init(int  fin_try)
     flash_rd(FLASH_PROGS, sizeof(TPROGRAMS)*(CUR_DK+1)-sizeof(crc_progs) ,
              (unsigned char*)&crc_progs, sizeof(crc_progs));
     //
-    crc_idp.crc =  crc_progs;// сохраним для передачи по UDP
-    //i_size = sizeof(PROJ[CUR_DK]);
     if (PROJ[CUR_DK].ProjectSize ==sizeof(PROJ[CUR_DK]))
     {
       if ( crc == PROJ[CUR_DK].CRC32)
@@ -119,6 +117,7 @@ BOOL ligh_load_init(int  fin_try)
           DK[CUR_DK].work = true;
           DK[CUR_DK].progs_valid = true;
           setValidGMT(true);
+          crc_idp.crc = PROJ[CUR_DK].IDP_CRC32; // сохраним для передачи по UDP
           return true;
         }
         else
@@ -588,7 +587,7 @@ for (;;)
       continue;
       }
     // ждем данных от GPS
-    if(DK[0].PROJ->guard.gpsON){ // работаем только с GPS DK_Service_undo();
+    if((DK[0].PROJ->guard.gpsON)&&(LIGHT_STA==LIGHT_WORK)){ // работаем только с GPS DK_Service_undo();
       GPS_INFO gps;
       Get_gps_info(&gps);
       switch(fStat)
@@ -678,13 +677,16 @@ if(PROJ[CUR_DK].ProjectSize == sizeof(PROJ[CUR_DK])){
   }
 return false;
 }
-static BOOL validProjectALL(void)
+// проверка проекта с чтением из flash
+static BOOL validProjectALL(const BOOL flFlash)
 {
+BYTE CountFlash = 0;
 // check error load flash
 memset(&PROJ,0,sizeof(PROJ)); // чистим структуру проекта
 memset(&crc_idp,0,sizeof(crc_idp));
+if(flFlash)CountFlash = 1;
 // read project
-flash_rd(FLASH_PROGRAM,sizeof(TPROJECT)*CUR_DK,(unsigned char*)&PROJ[CUR_DK], sizeof(PROJ[CUR_DK]));
+flash_rd(FLASH_PROGRAM,sizeof(TPROJECT)*CountFlash,(unsigned char*)&PROJ[CUR_DK], sizeof(PROJ[CUR_DK]));
 // calcul crc32
 const unsigned long crc=crc32_calc((unsigned char*)&PROJ[CUR_DK],sizeof(PROJ[CUR_DK])-sizeof(PROJ[CUR_DK].CRC32));
 // read CRC32 programms
@@ -706,23 +708,34 @@ return false;
 // вызываеться из потока 0.5 sec.
 static void checksumProject(void)
 {
+const BYTE TimeDelay = 5;
 static BYTE step = Null;
 static BYTE timeCall = 0;
-static BYTE CountError = 0;
+static BOOL choiceFlash = false;
+
+///////////// test /////////////
+if(DK[CUR_DK].tumblerAUTO)
+    DK[CUR_DK].PROJ->CRC32 = 0; //ломаем CRC32
+//////////// END ///////////////
 
 if(step==Null)
   {
-  if(++timeCall>10){ // проверка проекта 1 раз 5 сек
+  if(++timeCall>TimeDelay){ // проверка проекта 1 раз 5 сек
     timeCall = 0;
     if(!validProjectRAM()){ // проблемы с проектов в ОЗУ
-      if(!validProjectALL()){ // проблемы с проектом в флешь
-        if(CountError++){ // проверка второй копии проекта
+      // запись в журнал проверки RAM
+      if(!choiceFlash)Event_Push_Str("Авария CRC проекта 1 RAM!");
+      if(choiceFlash)Event_Push_Str("Авария CRC проекта 2 RAM!");
+
+      if(!validProjectALL(choiceFlash)){ // проблемы с проектом в флешь
+        if(!choiceFlash){Event_Push_Str("Авария CRC проекта копия 1!");choiceFlash = true;}
+        // проверка второй копии
+        if(!validProjectALL(choiceFlash)){
           Event_Push_Str("Авария CRC проекта копия 2!");
+          DK_HALT();
           step=One; // уходим в отключение
           return;
           }
-        // здесь должны подгрузить вторую версию проета
-        Event_Push_Str("Авария CRC проекта копия 1!");
         return;
         }
       }
@@ -736,6 +749,5 @@ else // dafault
   {
   step=Null;
   timeCall = 0;
-  CountError = 0;
   }
 }
