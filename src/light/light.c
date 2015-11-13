@@ -712,12 +712,12 @@ const BYTE TimeDelay = 5;
 static BYTE step = Null;
 static BYTE timeCall = 0;
 static BOOL choiceFlash = false;
-
+/*
 ///////////// test /////////////
 if(DK[CUR_DK].tumblerAUTO)
     DK[CUR_DK].PROJ->CRC32 = 0; //ломаем CRC32
 //////////// END ///////////////
-
+*/
 if(step==Null)
   {
   if(++timeCall>TimeDelay){ // проверка проекта 1 раз 5 сек

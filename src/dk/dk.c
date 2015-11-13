@@ -1228,7 +1228,7 @@ if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP)){
   if(TimeDelta<=osn_takt_time[CUR_DK])
     DK[CUR_DK].control.startLen = DK[CUR_DK].control.len  = osn_takt_time[CUR_DK]-TimeDelta;
     else
-    DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = osn_takt_time[CUR_DK];
+    DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = 0; // время вышло, сбросс
     // YF
     if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))osn_takt_time[CUR_DK]=1;
     // время окончания
@@ -1352,7 +1352,9 @@ static bool CONTROL(void)
                    }
                    if (TIME_PHASE_END())//закончилось время
                    {
-                      //закончилось время
+                      //закончилось время основного такта, фиксируем значения начала про. тактов
+                      const time_t timeStartTpr = getCurrentTimeBeginPhase()+osn_takt_time[CUR_DK];
+
                       //фиксируем следующее состояние
                       DK[CUR_DK].NEXT.set = true;
                       GEN_TAKTS();
@@ -1362,13 +1364,21 @@ static bool CONTROL(void)
                          CUR_NEXT();
                          break;
                       }
+                      // текущее время
+                      const time_t timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;// время когда в эту фазу попали
+                      DWORD TimeDelta=0;
+                      if(timeStartTpr<=timeCurrent)TimeDelta = timeCurrent - timeStartTpr;
+                      if(TimeDelta<=Tprom_len[CUR_DK])
+                        DK[CUR_DK].control.startLen = DK[CUR_DK].control.len  = Tprom_len[CUR_DK]-TimeDelta;
+                        else
+                        DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = 0; // время вышло, сбросс
                       //
-                      DK[CUR_DK].control.len = Tprom_len[CUR_DK];
+                      //DK[CUR_DK].control.len = Tprom_len[CUR_DK];
                       //
                       //в control.end - было окончание текущего состояния - основного такта
                       memcpy(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, sizeof(SYSTEMTIME));
                       // Окончание пром. тактов
-                      TIME_PLUS(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, Tprom_len[CUR_DK]);
+                      TIME_PLUS(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, DK[CUR_DK].control.len);
                       // чистим индексы
                       for (int i=0;i < DK[CUR_DK].PROJ->Directs.countDirectCCG; i++)
                         {
