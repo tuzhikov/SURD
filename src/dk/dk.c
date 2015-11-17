@@ -33,6 +33,8 @@ static int  Get_Next_Viz_Faz(int prog, int cur_faz);
 static int  WeekOfTheYear(SYSTEMTIME *st);
 static int  DayOfWeek(SYSTEMTIME *st);
 static bool Check_TVP_En(void);
+int getCurrentTimeBeginPhase(void);
+static int  getNextVisibledPhaseOfPlan(const int prog);
 /*----------------------------------------------------------------------------*/
 /*
 functions discrintion
@@ -150,13 +152,31 @@ return (!DK[CUR_DK].control.len);
 // текущее состо€ние дл€ фазы
 static BOOL TIME_PHASE_END(void)
 {
-const SYSTEMTIME *timeEnd = &DK[CUR_DK].control.endPhase;
+/*
+ const SYSTEMTIME *timeEnd = &DK[CUR_DK].control.endPhase;
 const int timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;
 const int timeStop    = timeEnd->tm_hour*3600 + timeEnd->tm_min*60 + timeEnd->tm_sec;
+const int timeStart   = getCurrentTimeBeginPhase();
 
-if(timeCurrent>=timeStop)
+if((timeStart>timeCurrent)||(timeCurrent>=timeStop)){// вышли издиопазона
+  DK[CUR_DK].control.len = 0;
+  }
+
+if(timeCurrent==timeStop) //
     DK[CUR_DK].control.len = 0;
-
+*/
+if(DK[CUR_DK].CUR.source==PLAN){
+  const int nPhase =  getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
+  if(nPhase!=DK[CUR_DK].CUR.prog_faza){
+    if(nPhase==DK[CUR_DK].NEXT.prog_faza){ // nex phase
+      DK[CUR_DK].control.len = 0;
+      }else{
+      Init_DK();
+      //STATE * const sta = DK[CUR_DK].REQ.req[VPU]
+      //memset(sta,0,sizeof(STATE));
+      }
+    }
+  }
 return(!DK[CUR_DK].control.len);
 }
 //------------------------------------------------------------------------------
@@ -1379,6 +1399,9 @@ static bool CONTROL(void)
                       memcpy(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, sizeof(SYSTEMTIME));
                       // ќкончание пром. тактов
                       TIME_PLUS(&DK[CUR_DK].control.start, &DK[CUR_DK].control.end, DK[CUR_DK].control.len);
+                      // находимс€ в режиме ¬ѕ”
+                      if(DK[CUR_DK].CUR.source==VPU)
+                          DK[CUR_DK].control.len = Tprom_len[CUR_DK];
                       // чистим индексы
                       for (int i=0;i < DK[CUR_DK].PROJ->Directs.countDirectCCG; i++)
                         {
@@ -1394,7 +1417,7 @@ static bool CONTROL(void)
                 // шаг промежуточного такта
                 case STA_PROM_TAKTS:
                 {
-                     if (TIME_END()) // смотрим врем€ и переходим
+                     if (TIME_PHASE_END()) // смотрим врем€ и переходим
                      {
                        // переходим
                        CUR_NEXT();

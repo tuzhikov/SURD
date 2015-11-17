@@ -60,6 +60,7 @@ static err_t udp_send_GPS_Time(struct cmd_raw* cmd_p);
 static err_t udp_send_DS1390_time(struct cmd_raw* cmd_p);
 static err_t udp_send_Light(struct cmd_raw* cmd_p);
 static err_t udp_send_info(struct cmd_raw* cmd_p);
+static err_t udp_send_password(struct cmd_raw* cmd_p);
 static err_t udp_send_tvp(struct cmd_raw* cmd_p);
 static err_t udp_send_state(struct cmd_raw* cmd_p, int argc, char** argv);
 static err_t udp_send_event(struct cmd_raw* cmd_p);
@@ -1054,6 +1055,11 @@ static void process_get_cmd(struct cmd_raw* cmd_p, char const* par,
         udp_send_tvp(cmd_p);
     }else
 
+    if (strcmp(par, "password") == 0)
+    {
+        udp_send_password(cmd_p);
+    }else
+
         udp_send_wrong_par(cmd_p);
 }
 //------------------------------------------------------------------------------
@@ -1609,6 +1615,18 @@ const long timeleft = DK[curr_dk].control.len;
 snprintf(tmpbuff, sizeof(tmpbuff), " TIME=%u",timeleft);
 strcat(buf,tmpbuff); // в основной буффер
 // send UDP
+return udp_sendstr(cmd_p, buf);
+}
+/*----------------------------------------------------------------------------*/
+// get password SURD
+static err_t udp_send_password(struct cmd_raw* cmd_p)
+{
+char buf[64];
+const TPROJECT *prg = retPointPROJECT();// данные по проекту
+const long password = prg->surd.Pass;// PROJ[CUR_DK].surd.Pass;
+snprintf(buf, sizeof (buf),
+        "SUCCESS:%u\r\n",
+        password);
 return udp_sendstr(cmd_p, buf);
 }
 /*----------------------------------------------------------------------------*/

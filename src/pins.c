@@ -234,6 +234,8 @@ for(;;)
       case One:
         //setFlagDefaultIP(false);// не проверять адресс IP
         pref_reset_default();   // call pref.h
+        // установить пароль по умолчанию
+        PROJ[CUR_DK].surd.Pass = 999999;
         fChangeIP = true;
         statTumbler = Two;
       case Two: // здесь находимся всегда

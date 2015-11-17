@@ -856,8 +856,8 @@ DK[CUR_DK].StatusDK = NULL;
 //вернуть статус СУРД сетевой
 BOOL getFlagStatusSURD(void)
 {
-return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
-//return true; // тест
+//return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
+return true; // тест
 }
 // установить статус СУРД
 void setFlagStatusSURD(const BOOL flag)
