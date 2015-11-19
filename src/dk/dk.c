@@ -152,28 +152,14 @@ return (!DK[CUR_DK].control.len);
 // текущее состояние для фазы
 static BOOL TIME_PHASE_END(void)
 {
-/*
- const SYSTEMTIME *timeEnd = &DK[CUR_DK].control.endPhase;
-const int timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;
-const int timeStop    = timeEnd->tm_hour*3600 + timeEnd->tm_min*60 + timeEnd->tm_sec;
-const int timeStart   = getCurrentTimeBeginPhase();
-
-if((timeStart>timeCurrent)||(timeCurrent>=timeStop)){// вышли издиопазона
-  DK[CUR_DK].control.len = 0;
-  }
-
-if(timeCurrent==timeStop) //
-    DK[CUR_DK].control.len = 0;
-*/
-if(DK[CUR_DK].CUR.source==PLAN){
+if((DK[CUR_DK].CUR.source==PLAN)){//||(DK[CUR_DK].NEXT.source==PLAN)){
   const int nPhase =  getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
   if(nPhase!=DK[CUR_DK].CUR.prog_faza){
     if(nPhase==DK[CUR_DK].NEXT.prog_faza){ // nex phase
       DK[CUR_DK].control.len = 0;
       }else{
-      Init_DK();
-      //STATE * const sta = DK[CUR_DK].REQ.req[VPU]
-      //memset(sta,0,sizeof(STATE));
+      //Init_DK();
+      tn_reset();
       }
     }
   }
@@ -1244,7 +1230,7 @@ if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP)){
   const time_t timeCurrent = CT.tm_hour*3600 + CT.tm_min*60 + CT.tm_sec;// время когда в эту фазу попали
   DWORD TimeDelta;
   if(timeStartPh<=timeCurrent)TimeDelta = timeCurrent - timeStartPh;
-                         else TimeDelta = timeStartPh - timeCurrent;
+                         else DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = 0;
   if(TimeDelta<=osn_takt_time[CUR_DK])
     DK[CUR_DK].control.startLen = DK[CUR_DK].control.len  = osn_takt_time[CUR_DK]-TimeDelta;
     else
@@ -1290,6 +1276,7 @@ if(DK[CUR_DK].CUR.source==TVP)
 // ищем фазу после ВПУ
 if((DK[CUR_DK].CUR.source==VPU)&&(DK[CUR_DK].NEXT.source==PLAN)){
   DK[CUR_DK].NEXT.prog_faza = getNextVisibledPhaseOfPlan(DK[CUR_DK].PLAN.cur.prog);
+  DK[CUR_DK].PLAN.cur.prog_faza = DK[CUR_DK].PLAN.next.prog_faza = DK[CUR_DK].NEXT.prog_faza;
   }
 //проверка на вызов любого режима не из PLAN
 if (DK[CUR_DK].CUR.source > DK[CUR_DK].NEXT.source){
@@ -1374,7 +1361,6 @@ static bool CONTROL(void)
                    {
                       //закончилось время основного такта, фиксируем значения начала про. тактов
                       const time_t timeStartTpr = getCurrentTimeBeginPhase()+osn_takt_time[CUR_DK];
-
                       //фиксируем следующее состояние
                       DK[CUR_DK].NEXT.set = true;
                       GEN_TAKTS();
@@ -1417,7 +1403,7 @@ static bool CONTROL(void)
                 // шаг промежуточного такта
                 case STA_PROM_TAKTS:
                 {
-                     if (TIME_PHASE_END()) // смотрим время и переходим
+                     if (TIME_PHASE_END()) // смотрим время и переходим  TIME_END()
                      {
                        // переходим
                        CUR_NEXT();

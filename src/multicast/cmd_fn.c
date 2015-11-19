@@ -1640,14 +1640,16 @@ static err_t udp_send_info(struct cmd_raw* cmd_p)
         "SUCCESS:%s\r\n"
         "VER.H %u\r\n"
         "VER.L %u.%u\r\n"
-        "%s\r\n"
+        "%s-%s\r\n"
         "%s\r\n"
         "ID  :%u\r\n"
         "IDP :%u\r\n",
         APP_NAME,
         VER_MAJOR,
         VER_MINOR,VER_MINORER,
-        VER_SVN_DATE,
+        //VER_SVN_DATE,
+        //__TIMESTAMP__,
+        __DATE__,__TIME__,
         APP_COPYRIGHT,
         id,
         idp);
