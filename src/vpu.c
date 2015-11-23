@@ -750,6 +750,7 @@ static void task_VPU_func(void* param)
         if(--DelayTime)break;
         if((OldSourse==VPU)){
           //DK_RESTART();//
+          Event_Push_Str("Reset VPU...\n");
           tn_reset();
           }
         stepVPU = For;

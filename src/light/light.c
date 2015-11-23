@@ -55,7 +55,7 @@ BOOL  power_flag=false;
 int light_time_out=1;
 // значение контрольной суммы проета
 struct TCRC_IDP{
-  unsigned long crc;
+  U32 crc;
 } crc_idp;
 /*------local functions ------------------------------------------------------*/
 static BOOL validProjectRAM(void);
@@ -274,7 +274,6 @@ static bool Check_Chan(void)
     //sens_count
     if ((sens_zero_count[SENS_N-1] + sens_plus_count[SENS_N-1]) > (sens_count+5))
            power_valid=false;
-
     //
     if (power_valid)
     if (!DK[CUR_DK].test)
@@ -659,7 +658,7 @@ for (;;)
 //----------------------------------------------------------------------------//
 // возращаем значение контрольной суммы проекта
 //----------------------------------------------------------------------------//
-unsigned long retCRC32()
+U32 retCRC32()
 {
 return crc_idp.crc;
 }

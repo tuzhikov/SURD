@@ -312,6 +312,7 @@ void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
     {
     DK_Service_undo();
     udp_send_success(cmd_p);
+    Event_Push_Str("Reset UNDO...\n");
     tn_reset();
     return;
     }
@@ -331,7 +332,7 @@ udp_send_wrong_par(cmd_p);
 //команда сброса ДК
 void cmd_reboot_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-    udp_sendstr(cmd_p, "SUCCESS: Rebooting...\n");
+    Event_Push_Str("Rebooting...\n");
     tn_reset();
 }
 //
@@ -1634,7 +1635,7 @@ return udp_sendstr(cmd_p, buf);
 static err_t udp_send_info(struct cmd_raw* cmd_p)
 {
     char buf[192];
-    const long idp = retCRC32();
+    const U32  idp = retCRC32();
     const BYTE id = retCurrenetID()+1;
     snprintf(buf, sizeof (buf),
         "SUCCESS:%s\r\n"
@@ -1688,7 +1689,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
 {
     char buf[250],txtPhase[15]={0};
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
-    const long idp = retCRC32();
+    const U32  idp = retCRC32();
     const BYTE currID = prg->surd.ID_DK_CUR;
     const DWORD Passw = prg->surd.Pass;
     const BOOL stSURD = getFlagLocalStatusSURD(); // передаем лог сотояние

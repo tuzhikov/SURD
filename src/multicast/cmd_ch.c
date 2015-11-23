@@ -17,6 +17,8 @@
 #include "../debug/debug.h"
 #include "../dk/dk.h"
 
+#define MAX_DELAY_TIME 10
+#define DELAY_POLLING 1000/MAX_DELAY_TIME
 /*----------------------------------------------------------------------------*/
 /**/
 /*----------------------------------------------------------------------------*/
@@ -43,6 +45,7 @@ static void task_cmd_LED_func(void* param);
 static struct udp_pcb*  g_cmd_ch_pcb;
 static u16_t            g_cmd_ch_port;
 static struct ip_addr   g_security_ipaddr;
+static int DelayTimeSURD;
 // состояния всех ВПУ по сети
 VIR_VPU vir_vpu;
 // промахи опроса по UDP статистика
@@ -450,7 +453,7 @@ if(typeCmd==GET_STATUS){
   }
 if(typeCmd==SET_STATUS){
   const TPROJECT *prg = retPointPROJECT();// данные по проекту
-  const long idp = retCRC32();
+  const U32  idp = retCRC32();
   const long passw =prg->surd.Pass;  // получить пароль
   const long stnet = retStatusSurdSend();// статус СУРД общий для сети
   const long sdnet = retStatusNetSend(); // статус NET общий для сети
@@ -473,7 +476,7 @@ if(typeCmd==SET_STATUS){
 if(typeCmd==SET_PHASE){
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
     const long id = vir_vpu.active;// ДК с включенным ВПУ
-    const long idp = retCRC32();
+    const U32  idp = retCRC32();
     const long passw = prg->surd.Pass;
     const BOOL stnet = retStatusSurdSend();// статус СУРД общий для сети
     const long sdnet = retStatusNetSend(); // статус NET общий для сети
@@ -521,6 +524,16 @@ if(sscanf(pStrIP,"%u.%u.%u.%u",&ip[0],&ip[1],&ip[2],&ip[3])==4){
 return retNull;
 }
 /* master DK------------------------------------------------------------------*/
+// вызываем 1 раз в (MAX_DELAY_TIME)мс
+Type_Return getAnswer(const BYTE nDk, const WORD maxTime)
+{
+static WORD countTime = 0;
+if(getStatusOneDk(nDk)){
+  countTime=0;return retOk;} // получили ответ
+if(++countTime>maxTime){
+  countTime=0;return retError;}// прошло время
+return retDelay;// ждем
+}
 // отработаем запросы сетевого статуса
 Type_Return masterDk(const TPROJECT *ret)
 {
@@ -533,9 +546,12 @@ static BYTE countmessageOk = 0,countmessageErr = 0;
 static BYTE countSrdOk=0,countSrdError=0;
 static BOOL fMessageErr = false,fMessageOk = false;
 static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
+static WORD CountDelayPolling = 0;
 struct ip_addr ipaddr;
+WORD answer;
 
 retModeNoPolling();// polling
+CountDelayPolling++; // считаем с каждым входом в автомат
 
 switch(stepMaster)
   {
@@ -559,8 +575,10 @@ switch(stepMaster)
       }
     return retNull;
   case Two: // timeout OK проверяем ответ
+    answer = getAnswer(indeDk,DelayTimeSURD);
+    if(answer==retDelay)return retNull; // ждем ответа или выхода времени
     stepMaster=One;
-    if(getStatusOneDk(indeDk)){//ответ получен
+    if(answer==retOk){//ответ получен getStatusOneDk(indeDk)
       if(++indeDk<ret->maxDK){stepMaster=Null;}
                          else{stepMaster=Three;}
       countsendOk++;// считаем удачные попытки ответа
@@ -583,7 +601,7 @@ switch(stepMaster)
       if(++countmessageOk>5){
         countmessageErr = 0;
         fMessageErr = false;
-        if(!fMessageOk){Event_Push_Str("SUCCESS:Все ДК в сети");fMessageOk = true;}
+        if(!fMessageOk){Event_Push_Str("SUCCESS: Все ДК в сети");fMessageOk = true;}
         }
       }else{
       setFlagNetwork(false);
@@ -613,9 +631,13 @@ switch(stepMaster)
           }
       }
   case Seven: // exit OK
-    indeDk = 1; // опрос с первого slave
-    stepMaster = Null;
-    return retOk;
+    if(CountDelayPolling>DELAY_POLLING){ //ждем до 1 сек для следующего цикла опроса
+      indeDk = 1; // опрос с первого slave
+      CountDelayPolling =0;
+      stepMaster = Null;
+      return retOk;
+      }
+    return retNull;
   default:   // exit Error
     indeDk = 1; // опрос с первого slave
     stepMaster = Null;
@@ -626,7 +648,7 @@ switch(stepMaster)
 Type_Return slaveDk(const TPROJECT *ret)
 {
 const WORD CountRepet = ret->surd.Count; // кол повторений запросов
-const WORD TimeDelay = ((WORD)ret->maxDK)*CountRepet; // общее время на формирование СУРД
+const WORD TimeDelay = ((WORD)ret->maxDK)*CountRepet*DelayTimeSURD; // общее время на формирование СУРД
 static BYTE stepSlave = Null,countTime = 0;
 static BYTE countOk = 0,countError = 0;
 static BYTE countSrdOk = 0,countSrdError = 0;
@@ -705,10 +727,10 @@ static void task_cmd_func(void* param)
     {
         struct cmd_raw* cmd_p;
         const TPROJECT *pPr = retPointPROJECT();   // получить данные проекта
-        const int DelayTime = (pPr->surd.TimeDelay>900)? 900:pPr->surd.TimeDelay;
+        DelayTimeSURD = (pPr->surd.TimeDelay>900)? 900/MAX_DELAY_TIME:pPr->surd.TimeDelay/MAX_DELAY_TIME;
 
         // проверка очереди выход по времени
-        const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,DelayTime);//TN_WAIT_INFINITE
+        const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,MAX_DELAY_TIME);//TN_WAIT_INFINITE
         hw_watchdog_clear(); // clear WD
         // таймаут
         if(answer==TERR_TIMEOUT){
@@ -856,8 +878,8 @@ DK[CUR_DK].StatusDK = NULL;
 //вернуть статус СУРД сетевой
 BOOL getFlagStatusSURD(void)
 {
-//return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
-return true; // тест
+return (BOOL)DK[CUR_DK].StatusSurd.flagStatusSURD;
+//return true; // тест
 }
 // установить статус СУРД
 void setFlagStatusSURD(const BOOL flag)
@@ -1020,7 +1042,7 @@ DK[CUR_DK].StatusSurd.sendStatusSURD = 0;
 BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,const DWORD sdnet)
 {
 const TPROJECT *prj = retPointPROJECT();
-const long idp_calc = retCRC32();//сравним  IDP
+const U32 idp_calc = retCRC32();//сравним  IDP
 if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(prj->surd.ID_DK_CUR){// это slave
@@ -1051,7 +1073,7 @@ BOOL checkMasterMessageDk(const BYTE id,
 {
 const TPROJECT *prj = retPointPROJECT();
 //сравним  IDP
-const long idp_calc = retCRC32();
+const U32 idp_calc = retCRC32();
 if(idp==idp_calc){// проект наш
   //проверка пароля
   if(pass==prj->surd.Pass){

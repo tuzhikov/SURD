@@ -14,6 +14,7 @@
 #define WALKER2 0x3000
 #define ARROW2  0xC000
 
+#include "../types_define.h"
 /*----------------------------------------------------------------------------*/
 typedef struct _LIGHT_MACHINE
 {
@@ -36,7 +37,7 @@ BOOL ligh_load_init();
 void DK_HALT();
 void DK_RESTART();
 void POWER_SET(const BOOL stat);
-unsigned long retCRC32();
+U32 retCRC32();
 //void External_Buttons(unsigned char button);
 //void SetLight (unsigned short light, BOOL flash);
 //unsigned short GetLight (void);

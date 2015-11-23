@@ -14,6 +14,7 @@
 #include "memory/ds1390.h"
 #include "sim900/sim900.h"
 #include "vpu.h"
+#include "event/evt_fifo.h"
 
 //#include "digi/rf_task.h"
 
@@ -75,6 +76,7 @@ void tn_halt_boot()
     {
         hw_delay(50000);
     }
+    Event_Push_Str("Reset Halt...\n");
     tn_reset();
 }
 
@@ -408,6 +410,7 @@ void hw_watchdog_int_handler()
 #ifdef DEBUG
         dbg_trace();
 #endif // DEBUG
+        Event_Push_Str("Reset Watchdog...\n");
         tn_reset();
     }
 }
