@@ -17,8 +17,8 @@
 #include "../debug/debug.h"
 #include "../dk/dk.h"
 
-#define MAX_DELAY_TIME 10
-#define DELAY_POLLING 1000/MAX_DELAY_TIME
+#define MAX_DELAY_TIME 1
+#define DELAY_POLLING  1000/MAX_DELAY_TIME
 /*----------------------------------------------------------------------------*/
 /**/
 /*----------------------------------------------------------------------------*/
@@ -541,7 +541,7 @@ const WORD IPPORT     = ret->surd.PORT;
 const WORD CountRepet = ret->surd.Count;
 static char BuffCommand[250];
 static int stepMaster = Null;
-static BYTE indeDk = 1,countsend=0,countsendOk=0,countsendErr=0;// счет indeDk со второго ДК
+static WORD indeDk = 1,countsend=0,countsendOk=0,countsendErr=0;// счет indeDk со второго ДК
 static BYTE countmessageOk = 0,countmessageErr = 0;
 static BYTE countSrdOk=0,countSrdError=0;
 static BOOL fMessageErr = false,fMessageOk = false;
@@ -559,12 +559,12 @@ switch(stepMaster)
     clearStatusOneDk(indeDk);// нулим
     clearStSurdOneDk(indeDk);// нулим
     setStatusOneDk(0,getFlagStatusSURD(),getValueFlagLocalStatusSURD()); // status master, статус СУРД
-    countsendErr += countsend; // сохраним промахи предыдущего обмена
+    //countsendErr += countsend; // сохраним промахи предыдущего обмена
     countsend = 0;
     if(retAnswerVPU()){
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
                   }else{
-                  CollectCmd(BuffCommand,sizeof(BuffCommand),SET_STATUS);// опрос статуса
+                  CollectCmd(BuffCommand,sizeof(BuffCommand),SET_STATUS);// опрос статуса SET_STATUS
                   }
   case One:
     if(retSurdIP(indeDk,&ipaddr)==retOk){
@@ -583,8 +583,11 @@ switch(stepMaster)
                          else{stepMaster=Three;}
       countsendOk++;// считаем удачные попытки ответа
       }
-    if(++countsend>CountRepet){ // ответа нет CountRepet раз выходим
-      stepMaster = Three;return retError;
+    if(answer==retError){
+      countsendErr++; // считаем промахи.
+      if(++countsend>=CountRepet){ // ответа нет CountRepet раз выходим
+        stepMaster = Three;return retError;
+        }
       }
     return retNull;
   case Three:
@@ -649,11 +652,13 @@ Type_Return slaveDk(const TPROJECT *ret)
 {
 const WORD CountRepet = ret->surd.Count; // кол повторений запросов
 const WORD TimeDelay = ((WORD)ret->maxDK)*CountRepet*DelayTimeSURD; // общее время на формирование СУРД
-static BYTE stepSlave = Null,countTime = 0;
-static BYTE countOk = 0,countError = 0;
+static WORD stepSlave = Null,countTime = 0;
+static WORD countOk = 0,countError = 0;
 static BYTE countSrdOk = 0,countSrdError = 0;
 static BOOL fMessageErr = false,fMessageOk = false;
 static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
+
+retModeNoPolling();//polling
 
 switch(stepSlave)
   {
@@ -662,7 +667,7 @@ switch(stepSlave)
     clearStSurd();
     stepSlave = One;
   case One: // Ждем TimeDelay сек и проверка на ОС
-    if(retModeNoPolling())return retNull; // включили ОС, выходим
+    //if(retModeNoPolling())return retNull; // включили ОС, выходим
     if(++countTime>TimeDelay){//TimeDelay время опроса всех ДК в сети
         countTime = 0;
         stepSlave = Two;

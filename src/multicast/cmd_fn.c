@@ -1721,7 +1721,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "VSR:   %u\r\n"
         "VER:   %u\r\n"
         "ST:    %u\r\n"
-        "SLIPS  %u/%u\r\n"
+        "SLIPS  ok:%u err:%u\r\n"
         "But:   %u\r\n"
         "PhExt: %u\r\n"
         "PhR:   %u\r\n"
