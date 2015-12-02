@@ -1,0 +1,18 @@
+/bin/
+/Debug/
+/Release/
+/settings/
+/Backup of led_control.ewd
+/Backup of led_control.ewp
+/Backup of led_control_boot.ewd
+/Backup of led_control_boot.ewp
+/EW4E4F.tmp
+/hw_types.h
+/led_control.dep
+/led_control.ewd
+/led_control.ewp
+/led_control.ewt
+/led_control.eww
+/led_control_boot.dep
+/led_control_boot.ewd
+/led_control_boot.ewp
