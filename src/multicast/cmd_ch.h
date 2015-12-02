@@ -76,7 +76,6 @@ BOOL getStatusOneDk(const BYTE nDk);
 void clearStatusOneDk(const BYTE nDk);
 BOOL getAllDk(void);
 BOOL getFlagNetwork(void);
-void claerFlagNetwork(void);
 void setFlagNetwork(const BOOL flag);
 //
 BOOL getAllSURD(void);
@@ -90,15 +89,14 @@ void clearStSurdOneDk(const BYTE nDk);
 //Установить состояние события СУРД по UDP
 BOOL getFlagStatusSURD(void);
 void setFlagStatusSURD(const BOOL flag);
-void clearFlagStatusSURD(void);
 //Установить состояние события СУРД данного ДК
 BOOL getFlagLocalStatusSURD(void);
-BYTE getValueFlagLocalStatusSURD(void);
-void setFlagLocalStatusSURD(const BYTE flag);
+BYTE getValueLocalStatusSURD(void);
+void setValueLocalStatusSURD(const BYTE flag);
 //
 void clearStatusNet(void);
-void clearStatusSurdSend(void);
-void clearStatusNetSend(void);
+//void clearStatusSurdSend(void);
+//void clearStatusNetSend(void);
 BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,const DWORD idp,
                           const BYTE surdOn,const BYTE vpuOn,const BYTE vpuPhase,
                           const WORD stled,const BYTE valSurd);

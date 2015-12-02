@@ -995,12 +995,12 @@ Type_STATUS_VPU retStateVPU(void){return vpu_exch.s_to_m.vpu;}
 WORD retStatusLed(void)
 {
 WORD led = 0;
-tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
+//tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
 led = dataVpu.led[ButPhase8].On<<14|dataVpu.led[ButPhase7].On<<12|
       dataVpu.led[ButPhase6].On<<10|dataVpu.led[ButPhase5].On<<8|
       dataVpu.led[ButPhase4].On<<6|dataVpu.led[ButPhase3].On<<4|
       dataVpu.led[ButPhase2].On<<2|dataVpu.led[ButPhase1].On<<0;
-tn_mutex_unlock(&led_mutex);
+//tn_mutex_unlock(&led_mutex);
 return led;
 }
 /*----------------------------------------------------------------------------*/
@@ -1008,7 +1008,7 @@ return led;
 void setStatusLed(const WORD stLed)
 {
 const BYTE MASK = 0x03;
-tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
+//tn_mutex_lock(&led_mutex, TN_WAIT_INFINITE);
 dataVpu.led[ButPhase8].On = (TYPE_LED_SATUS)((stLed>>14)&MASK);
 dataVpu.led[ButPhase7].On = (TYPE_LED_SATUS)((stLed>>12)&MASK);
 dataVpu.led[ButPhase6].On = (TYPE_LED_SATUS)((stLed>>10)&MASK);
@@ -1017,6 +1017,6 @@ dataVpu.led[ButPhase4].On = (TYPE_LED_SATUS)((stLed>>6)&MASK);
 dataVpu.led[ButPhase3].On = (TYPE_LED_SATUS)((stLed>>4)&MASK);
 dataVpu.led[ButPhase2].On = (TYPE_LED_SATUS)((stLed>>2)&MASK);
 dataVpu.led[ButPhase1].On = (TYPE_LED_SATUS)((stLed>>0)&MASK);
-tn_mutex_unlock(&led_mutex);
+//tn_mutex_unlock(&led_mutex);
 }
 /*----------------------------------------------------------------------------*/

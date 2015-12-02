@@ -17,23 +17,30 @@
 #define TASK_LEDS_PRI               4
 #define TASK_LEDS_STK_SZ            128
 
+// sim900/sim900.c
+#define TASK_SIM900_PRI             16
+#define TASK_SIM900_STK_SZ          128*4
 // VPU.c
-#define TASK_VPU_PRI                5
+#define TASK_VPU_PRI                10
 #define TASK_VPU_STK_SZ             128
 
-// sim900/sim900.c
-#define TASK_SIM900_PRI             6
-#define TASK_SIM900_STK_SZ          128*4
+// light/light.c
+#define TASK_LIGHT_PRI              12
+#define TASK_LIGHT_STK_SZ           256
 
-// lwip/lwiplib.c
-#define TASK_ETH_PRI                12
+// digi/rf_task.c
+#define TASK_RF_PRI                 14
+#define TASK_RF_STK_SZ              256
+
+// lwip/lwiplib.c .............................
+#define TASK_ETH_PRI                5
 #define TASK_ETH_STK_SZ             128*4//256
 
 // ipmulticast/cmd_ch.c
-#define TASK_CMD_PRI                16
+#define TASK_CMD_PRI                6
 #define TASK_CMD_STK_SZ             128*4//256
 //
-// ipmulticast/cmd_ch.c
+// ipmulticast/cmd_ch.c ........................
 #define TASK_CMD_LED_PRI            25
 #define TASK_CMD_STK_LED_SZ         128 //256
 
@@ -48,15 +55,6 @@
 // pins.c
 #define TASK_PINS_PRI               25
 #define TASK_PINS_STK_SZ            128//256
-
-
-// light/light.c
-#define TASK_LIGHT_PRI              10
-#define TASK_LIGHT_STK_SZ           256
-
-// digi/rf_task.c
-#define TASK_RF_PRI                 14
-#define TASK_RF_STK_SZ              256
 
 // sys util's
 

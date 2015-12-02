@@ -1605,7 +1605,7 @@ if(getStatusDK())strcat(buf,"OK");
 strcat(buf," SURD=");
 if(getFlagStatusSURD())strcat(buf,"OK");
                   else strcat(buf,"NO");
-// add status net
+// add status NET
 strcat(buf," NET=");
 if(getFlagNetwork())strcat(buf,"OK");
                else strcat(buf,"NO");
@@ -1649,7 +1649,6 @@ static err_t udp_send_info(struct cmd_raw* cmd_p)
         VER_MAJOR,
         VER_MINOR,VER_MINORER,
         //VER_SVN_DATE,
-        //__TIMESTAMP__,
         __DATE__,__TIME__,
         APP_COPYRIGHT,
         id,
@@ -1698,7 +1697,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
     const WORD stLed = retStatusLed(); // состояние светодиодов
     retPhaseToText(txtPhase,sizeof(txtPhase),nPhase);
     const DWORD stNEt = retStatusNet();
-    const BYTE valSURD = getValueFlagLocalStatusSURD(); // события СУРД
+    const BYTE valSURD = getValueLocalStatusSURD(); // события СУРД
     // переменные отладка
     const BYTE  stVB = dataVpu.bOnIndx;
     const BYTE  stPR = DK[CUR_DK].REQ.req[VPU].faza;

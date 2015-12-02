@@ -435,9 +435,9 @@ const BOOL flagOS_AUTO_ON = (DK[CUR_DK].OSHARD)|(DK[CUR_DK].OSSOFT)|(DK[CUR_DK].
 if(DK[CUR_DK].CUR.source==ALARM) setStatusDK(false);
                             else setStatusDK(true);
 // установить FlagLocalStatusSURD
-if((!getStatusDK())||(!getFlagNetwork())){setFlagLocalStatusSURD(SURD_RESTART_DK_OK);}
-                  else if(flagOS_AUTO_ON){setFlagLocalStatusSURD(SURD_RESTART_DK_NO);}
-                                     else{setFlagLocalStatusSURD(SURD_DK_OK);}
+if((!getStatusDK())||(!getFlagNetwork())){setValueLocalStatusSURD(SURD_RESTART_DK_OK);}
+                  else if(flagOS_AUTO_ON){setValueLocalStatusSURD(SURD_RESTART_DK_NO);}
+                                     else{setValueLocalStatusSURD(SURD_DK_OK);}
 return false;
 }
 /*собрать запрос*/
@@ -453,11 +453,11 @@ if(typeCmd==GET_STATUS){
   }
 if(typeCmd==SET_STATUS){
   const TPROJECT *prg = retPointPROJECT();// данные по проекту
-  const U32  idp = retCRC32();
-  const long passw =prg->surd.Pass;  // получить пароль
-  const long stnet = retStatusSurdSend();// статус СУРД общий для сети
-  const long sdnet = retStatusNetSend(); // статус NET общий для сети
-  const long retTime = retTimePhase(); // остаток времени для работы фазы
+  const DWORD idp = retCRC32();
+  const DWORD passw =prg->surd.Pass;  // получить пароль
+  const DWORD stnet = retStatusSurdSend();// статус СУРД общий для сети
+  const DWORD sdnet = retStatusNetSend(); // статус NET общий для сети
+  const DWORD retTime = retTimePhase(); // остаток времени для работы фазы
 
   snprintf(pStr,leng,
         "setstatussurd\r"
@@ -475,14 +475,14 @@ if(typeCmd==SET_STATUS){
   }
 if(typeCmd==SET_PHASE){
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
-    const long id = vir_vpu.active;// ДК с включенным ВПУ
-    const U32  idp = retCRC32();
-    const long passw = prg->surd.Pass;
-    const BOOL stnet = retStatusSurdSend();// статус СУРД общий для сети
-    const long sdnet = retStatusNetSend(); // статус NET общий для сети
-    const long phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
-    const long stLed = vir_vpu.vpu[vir_vpu.active].stLED;
-    const long retTime = retTimePhase(); // остаток времени для работы фазы
+    const DWORD id = vir_vpu.active;// ДК с включенным ВПУ
+    const DWORD idp = retCRC32();
+    const DWORD passw = prg->surd.Pass;
+    const BOOL  stnet = retStatusSurdSend();// статус СУРД общий для сети
+    const DWORD sdnet = retStatusNetSend(); // статус NET общий для сети
+    const DWORD phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
+    const DWORD stLed = vir_vpu.vpu[vir_vpu.active].stLED;
+    const DWORD retTime = retTimePhase(); // остаток времени для работы фазы
 
     snprintf(pStr,leng,
         "setphaseudp\r"
@@ -558,8 +558,7 @@ switch(stepMaster)
   case Null: //сбросс
     clearStatusOneDk(indeDk);// нулим
     clearStSurdOneDk(indeDk);// нулим
-    setStatusOneDk(0,getFlagStatusSURD(),getValueFlagLocalStatusSURD()); // status master, статус СУРД
-    //countsendErr += countsend; // сохраним промахи предыдущего обмена
+    setStatusOneDk(0,getFlagStatusSURD(),getValueLocalStatusSURD()); // status master, статус СУРД
     countsend = 0;
     if(retAnswerVPU()){
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
@@ -615,6 +614,7 @@ switch(stepMaster)
         if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
         }
       }
+
     // все могут работать в СУРД
     if(getAllSURD()){
       setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
@@ -862,6 +862,8 @@ static BOOL ip_security_check(struct ip_addr* srv_addr)
     return g_security_ipaddr.addr == srv_addr->addr;
 }
 /*----------------------------------------------------------------------------*/
+// флаг сотояние данного ДК  АВТО РУ  return true, ALARM tumbler OC ABTO  - false
+/*----------------------------------------------------------------------------*/
 // Статус ДК
 BOOL getStatusDK(void)
 {
@@ -872,14 +874,10 @@ void setStatusDK(const BOOL flag)
 {
 DK[CUR_DK].StatusDK = flag;
 }
-// очистить статус
-void clearStatusDK(void)
-{
-DK[CUR_DK].StatusDK = NULL;
-}
 /*----------------------------------------------------------------------------*/
 // функции для работы в группе
 /*----------------------------------------------------------------------------*/
+/*статус СУРД сетевой общий*/
 //вернуть статус СУРД сетевой
 BOOL getFlagStatusSURD(void)
 {
@@ -891,19 +889,14 @@ void setFlagStatusSURD(const BOOL flag)
 {
 DK[CUR_DK].StatusSurd.flagStatusSURD = flag;
 }
-// очистить статус СУРД
-void clearFlagStatusSURD(void)
-{
-DK[CUR_DK].StatusSurd.flagStatusSURD = NULL;
-}
-/* -------------------------статус СУРД локально------------------------------*/
+/* -------------------------статус СУРД локально в каждом ДК------------------*/
 // установить
-void setFlagLocalStatusSURD(const BYTE flag)
+void setValueLocalStatusSURD(const BYTE flag)
 {
 DK[CUR_DK].StatusSurd.flagLocalStatusSURD = flag;
 }
 // значение СУРД значение
-BYTE getValueFlagLocalStatusSURD(void)
+BYTE getValueLocalStatusSURD(void)
 {
 return (BYTE)DK[CUR_DK].StatusSurd.flagLocalStatusSURD;
 }
@@ -912,23 +905,18 @@ BOOL getFlagLocalStatusSURD(void)
 {
 return ((~DK[CUR_DK].StatusSurd.flagLocalStatusSURD)&SURD_DK_OK)? false:true;
 }
-/*----------------------------------------------------------------------------*/
+/*----------------------------статус NET сетевой общий------------------------*/
 // проверка все ДК в сети
 BOOL getFlagNetwork(void)//network
 {
 return (BOOL)DK[CUR_DK].StatusSurd.flagNetworkStatus;
-}
-// clear flag net
-void claerFlagNetwork(void)
-{
-DK[CUR_DK].StatusSurd.flagNetworkStatus = NULL;
 }
 // set flag net
 void setFlagNetwork(const BOOL flag)
 {
 DK[CUR_DK].StatusSurd.flagNetworkStatus = flag;
 }
-/*----------------------------------------------------------------------------*/
+/*----------------------------Статус СУРД расчетное --------------------------*/
 // запросить статус One DK
 BOOL getStSurdOneDk(const BYTE nDk)
 {
@@ -969,7 +957,7 @@ for(int i=0;i<maxDk;i++)
   }
 return true;
 }
-/*----------------------------------------------------------------------------*/
+/*----------------------------Статус NET расчетное ---------------------------*/
 // проверить все ДК на связи.
 BOOL getAllDk(void)
 {
@@ -1015,21 +1003,17 @@ void setStatusNet(DWORD st)
 DK[CUR_DK].StatusSurd.tmpStatusNet = st;
 }
 /*----------------------------------------------------------------------------*/
-// word send to UDP передаем по сети
+// word send to UDP передаем по сети статус NET данного ДК
 DWORD retStatusNetSend(void)
 {
-return DK[CUR_DK].StatusSurd.sendStatusDK;
+return DK[CUR_DK].StatusSurd.sendStatusNet;
 }
 void  setStatusNetSend(DWORD st)
 {
-DK[CUR_DK].StatusSurd.sendStatusDK = st;
-}
-void clearStatusNetSend(void)
-{
-DK[CUR_DK].StatusSurd.sendStatusDK = 0;
+DK[CUR_DK].StatusSurd.sendStatusNet = st;
 }
 /*----------------------------------------------------------------------------*/
-// word send to UDP передаем по сети статус СУРД
+// word send to UDP передаем по сети статус СУРД данного ДК
 DWORD retStatusSurdSend(void)
 {
 return DK[CUR_DK].StatusSurd.sendStatusSURD;
@@ -1037,10 +1021,6 @@ return DK[CUR_DK].StatusSurd.sendStatusSURD;
 void  setStatusSurdSend(DWORD st)
 {
 DK[CUR_DK].StatusSurd.sendStatusSURD = st;
-}
-void clearStatusSurdSend(void)
-{
-DK[CUR_DK].StatusSurd.sendStatusSURD = 0;
 }
 /*----------------------------------------------------------------------------*/
 // "slave" проверяем запросы ДК от мастера и устанавливаем сетевой статус
@@ -1051,12 +1031,10 @@ const U32 idp_calc = retCRC32();//сравним  IDP
 if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(prj->surd.ID_DK_CUR){// это slave
-      // Net
-      setStatusNet(sdnet);   // флаг проверки
+      setStatusNet(sdnet);  // флаг net
       if(getAllDk())setFlagNetwork(true);
                else setFlagNetwork(false);
-      //СУРД
-      setStSurd(stnet);
+      setStSurd(stnet);     // флаг СУРД
       if(getAllSURD())setFlagStatusSURD(true);
                  else setFlagStatusSURD(false);
       return true;

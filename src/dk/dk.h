@@ -148,14 +148,14 @@ typedef struct __CONTROLLER
 } CONTROLLER;
 // Статус SURD
 typedef struct{
-  DWORD sendStatusDK;   // переменная для передачи в сеть, копия tmpStatusNet
+  DWORD sendStatusNet;  // переменная для передачи в сеть, копия tmpStatusNet
   DWORD sendStatusSURD; // переменная для передачи в сеть, копия tmpStatusSURD
   DWORD tmpStatusNet;   // мах ДК 32 собирает инф. мастер о slave
   DWORD tmpStatusSURD;  // статус СУРД собирает "мастер"
 
-  BYTE  flagNetworkStatus;   // сетевой статус общий после опроса ДК
+  BYTE  flagNetworkStatus;   // статус NET,  общий после опроса ДК
   BYTE  flagStatusSURD;      // статус СУРД, общий после опроса ДК
-  BYTE  flagLocalStatusSURD; //
+  BYTE  flagLocalStatusSURD; // статус СУРД, локальный для данного ДК
 
 }STATUS_SURD;
 // Структура - ДК
