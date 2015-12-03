@@ -18,7 +18,8 @@
 #include "../dk/dk.h"
 
 #define MAX_DELAY_TIME 1
-#define DELAY_POLLING  1000/MAX_DELAY_TIME
+#define DELAY_POLLING  1000/MAX_DELAY_TIME  // delay 1 s
+#define DELAY_TIME_LED 100/MAX_DELAY_TIME   // delay 100ms
 /*----------------------------------------------------------------------------*/
 /**/
 /*----------------------------------------------------------------------------*/
@@ -31,16 +32,16 @@ struct cmd_nfo g_cmd_nfo[CMD_NFO_SZ]; // global, used in cmd_fn.c in cmd_help_fu
 static char* g_argv[MAX_ARGV_SZ];
 // command channel task
 static TN_TCB task_cmd_tcb;
-static TN_TCB task_cmd_LED_tcb;
+//static TN_TCB task_cmd_LED_tcb;
 
 #pragma location = ".noinit"
 #pragma data_alignment=8
 
 static unsigned int task_cmd_stk[TASK_CMD_STK_SZ];
-static unsigned int task_cmd_LED_stk[TASK_CMD_STK_SZ];
+//static unsigned int task_cmd_LED_stk[TASK_CMD_STK_SZ];
 
 static void task_cmd_func(void* param);
-static void task_cmd_LED_func(void* param);
+//static void task_cmd_LED_func(void* param);
 
 static struct udp_pcb*  g_cmd_ch_pcb;
 static u16_t            g_cmd_ch_port;
@@ -170,13 +171,13 @@ void cmd_ch_init()
         goto err;
     }
     //
-    if (tn_task_create(&task_cmd_LED_tcb, &task_cmd_LED_func, TASK_CMD_LED_PRI,
+    /*if (tn_task_create(&task_cmd_LED_tcb, &task_cmd_LED_func, TASK_CMD_LED_PRI,
         &task_cmd_LED_stk[TASK_CMD_STK_LED_SZ - 1], TASK_CMD_STK_LED_SZ, 0,
         TN_TASK_START_ON_CREATION) != TERR_NO_ERR)
     {
         dbg_puts("tn_task_create(&task_cmd_tcb) error");
         goto err;
-    }
+    }*/
     // command's channel
     g_cmd_ch_pcb = udp_new();
 
@@ -356,7 +357,7 @@ err:
 /*----------------------------------------------------------------------------*/
 // поток управления светодиодом
 /*----------------------------------------------------------------------------*/
-static void task_cmd_LED_func(void* param)
+/*static void task_cmd_LED_func(void* param)
 {
     for (;;)
     {
@@ -371,6 +372,32 @@ static void task_cmd_LED_func(void* param)
         hw_watchdog_clear(); // clear WD
        }
     }
+} */
+static void showLED(void)
+{
+static WORD countTime = 0;
+static BYTE Step = Null;
+
+hw_watchdog_clear(); // clear WD
+
+switch(Step)
+  {
+  case Null:
+    if(++countTime<DELAY_TIME_LED)return;
+    countTime = 0;
+    if(!ETH_RECV_FLAG)return;
+    ETH_RECV_FLAG = FALSE;
+    pin_off(OPIN_TEST2);
+    Step = One;
+    return;
+  case One:
+    if(++countTime<DELAY_TIME_LED)return;
+    countTime = 0;
+    pin_on(OPIN_TEST2);
+    Step = Null;
+    return;
+  default:Step = Null;return;
+  }
 }
 /*----------------------------------------------------------------------------*/
 /* проверка запровсов от ВПУ или сети */
@@ -737,8 +764,11 @@ static void task_cmd_func(void* param)
         // проверка очереди выход по времени
         const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,MAX_DELAY_TIME);//TN_WAIT_INFINITE
         hw_watchdog_clear(); // clear WD
+        // showe LED
+        //showLED();
         // таймаут
         if(answer==TERR_TIMEOUT){
+          showLED();
           PollingDkLine(pPr);
           }else{ // есть что то в буффере UDP
           // есть ошибки
