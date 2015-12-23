@@ -16,6 +16,10 @@
 BYTE     GREEN_PORT;
 BYTE     RED_PORT;
 BYTE     YEL_PORT;
+// состояние защелок для передачи по сети
+BYTE     GR_PORT_NET;
+BYTE     RD_PORT_NET;
+BYTE     YL_PORT_NET;
 // флаги Включенных конфликтов выходов
 BYTE     GREEN_PORT_CONF;
 BYTE     RED_PORT_CONF;
@@ -33,6 +37,10 @@ typedef enum{
 }STATES_UDZCG; // состояния УДЗ
 static STATES_LIGHT staLightCCG[MaxDirects]; // буффер текущих состояний направлений ССГ
 static BYTE statLigthUDZCG[MaxDirects]; //буффер тукущий состояний УДЗСГ
+//----------------------------------------------------------------------------//
+// functions prototip
+//----------------------------------------------------------------------------//
+static void ClearNetPORT(void);
 //----------------------------------------------------------------------------//
 // functions descriptions
 //----------------------------------------------------------------------------//
@@ -79,6 +87,7 @@ static void Collect_Conflicts(void)
 void Prepare_KURS_Structures()
 {
 Collect_Conflicts();
+ClearNetPORT();
 }
 //----------------------------------------------------------------------------//
 void Clear_LED()
@@ -86,6 +95,13 @@ void Clear_LED()
 GREEN_PORT=0;
 RED_PORT = 0;
 YEL_PORT = 0;
+}
+//----------------------------------------------------------------------------//
+static void ClearNetPORT(void)
+{
+GR_PORT_NET=0;
+RD_PORT_NET=0;
+YL_PORT_NET=0;
 }
 //----------------------------------------------------------------------------//
 // устанавливает вывод группы
@@ -347,6 +363,10 @@ pin_off(OPIN_Y_LOAD );
 Write_DX(GREEN_PORT);
 pin_on(OPIN_G_LOAD );
 pin_off(OPIN_G_LOAD );
+//переменные для передачи в сеть
+GR_PORT_NET=GREEN_PORT;
+RD_PORT_NET=RED_PORT;
+YL_PORT_NET=YEL_PORT;
 }
 //----------------------------------------------------------------------------//
 void Light_TVP_Wait(int p_faz)

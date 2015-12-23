@@ -51,6 +51,7 @@ unsigned char WAIT_1S_COUNT;
 FAULT_TYPE  chan_faults;
 BOOL  Next_Try_wait=false;
 BOOL  power_flag=false;
+BOOL  status_resrart = false;
 // откладываем запуск на кол-во тиков
 int light_time_out=1;
 // значение контрольной суммы проета
@@ -75,7 +76,6 @@ void POWER_SET(const BOOL stat)
          SIGNAL_OFF();
          light_time_out=2;
       }
-
     }
     else
     {
@@ -147,7 +147,22 @@ BOOL ligh_load_init(int  fin_try)
     }
 return false;
 }
-//------------------------------------------------------------------------------
+/*----------------------------------------------------------------------------*/
+void clearStatusRestart(void)
+{
+status_resrart = false;
+}
+/*----------------------------------------------------------------------------*/
+BOOL retStatusRestart(void)
+{
+return (!status_resrart);
+}
+/*----------------------------------------------------------------------------*/
+static void setStatusRestart(const BOOL st)
+{
+status_resrart = st;
+}
+/*----------------------------------------------------------------------------*/
 // init one call
 void light_init(void)
 {
@@ -155,6 +170,8 @@ void light_init(void)
     pin_on(OPIN_TR_EN );//включить выходные регистры
     LIGHT_STA=LIGHT_WORK;// machine stat
     light_machine.work = FALSE; // stop machine
+    //
+    setStatusRestart(true);// перезагрузка
     //
     BOOL is_init;
     dk_num=0;

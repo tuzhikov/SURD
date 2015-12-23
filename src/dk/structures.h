@@ -219,20 +219,21 @@ typedef struct _TGUARD{
         // >0 - время между зелеными конфликтных направлений
         BYTE  ConfMatrix[MaxDirects][MaxDirects]; //
         BYTE  ConfMatrixFlag[MaxDirects][MaxDirects]; //  флаги
-        BYTE  red_min;   // минимальный
         BYTE  yellow;
-        BYTE  yellow_min;   // тест
         BYTE  redyellow;
         BYTE  green_yellow;
-        BYTE  green_min;
+        BYTE  green_fill;       // флаг заполнения пром. тактов 0-красным, 1 - зеленым
+        BYTE  type_cycle;       // тип пром. такта для отображения.
+        BYTE  restart_interval; // интервал перезапуска
+        BYTE  restarts;         // кол-во попыток перезапуска
+        BYTE  time_clear;       // время очистки аварий
+        BYTE  gpsON;            // включение проверки GPS
+        WORD  red_min;          // минимальное время красного
+        WORD  yellow_min;       // минимальное время желтого
+        WORD  green_min;        // минимальное время зеленого
         WORD  faza_max;
-        BYTE  green_fill;        // флаг заполнения пром. тактов 0-красным, 1 - зеленым
-        BYTE  type_cycle;        // тип пром. такта для отображения.
-        BYTE  restart_interval;  // интервал перезапуска
-        BYTE  restarts;          // кол-во попыток перезапуска
-        BYTE  time_clear;        // время очистки аварий
-        BYTE  kk_len;            // КК длительнсоть
-        BYTE  gpsON;             // включение проверки GPS
+        WORD  kk_len;           // КК длительнсоть
+        WORD  TimeVPU;          // мак. время включения ВПУ
   }TGUARD;
 /*----------------------------------------------------------------------------*/
 typedef struct _TJORNAL{

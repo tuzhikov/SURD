@@ -150,12 +150,15 @@ typedef struct __CONTROLLER
 typedef struct{
   DWORD sendStatusNet;  // переменная для передачи в сеть, копия tmpStatusNet
   DWORD sendStatusSURD; // переменная для передачи в сеть, копия tmpStatusSURD
+  DWORD sendRestartTmin;// для передачи в сеть, копия tmpRestartTmin
   DWORD tmpStatusNet;   // мах ДК 32 собирает инф. мастер о slave
   DWORD tmpStatusSURD;  // статус СУРД собирает "мастер"
+  DWORD tmpRestartTmin; // Тмин после рестарта
 
   BYTE  flagNetworkStatus;   // статус NET,  общий после опроса ДК
   BYTE  flagStatusSURD;      // статус СУРД, общий после опроса ДК
   BYTE  flagLocalStatusSURD; // статус СУРД, локальный для данного ДК
+  BYTE  flagTminVPU;
 
 }STATUS_SURD;
 // Структура - ДК

@@ -38,9 +38,7 @@ void DK_HALT();
 void DK_RESTART();
 void POWER_SET(const BOOL stat);
 U32 retCRC32();
-//void External_Buttons(unsigned char button);
-//void SetLight (unsigned short light, BOOL flash);
-//unsigned short GetLight (void);
-//void GetNaprText (char *buf);
+void clearStatusRestart(void);
+BOOL retStatusRestart(void);
 
 #endif // __LIGHT_H__

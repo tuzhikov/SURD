@@ -107,7 +107,7 @@ if (argc<7) // пришло не то
     return;
     }
 // проверка сообщения
-unsigned long idp=0,pass=0,fSn=0,fSd=0,time = 0;
+unsigned long idp=0,pass=0,fSn=0,fSd=0,time = 0,psgOk=0,psgErr=0,Tmin = 0;
 
 if(strcmp(argv[0],"IDP:")==0){
   sscanf(argv[1],"%u",&idp);
@@ -124,9 +124,20 @@ if(strcmp(argv[6],"SD:")==0){
 if(strcmp(argv[8],"TM:")==0){
   sscanf(argv[9],"%u",&time);
   }
+if(strcmp(argv[10],"POK:")==0){
+  sscanf(argv[11],"%u",&psgOk);
+  }
+if(strcmp(argv[12],"PER:")==0){
+  sscanf(argv[13],"%u",&psgErr);
+  }
+if(strcmp(argv[14],"TMN:")==0){
+  sscanf(argv[15],"%u",&Tmin);
+  }
 // установить сетевые статусы для slave
-if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
+if(checkSlaveMessageDk(idp,pass,fSn,fSd,Tmin)){
   ReturnToWorkPlan(); // ВПУ off.  в режиме опроса
+  pol_slips.sumOk = psgOk;
+  pol_slips.sumErr = psgErr;
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
@@ -152,7 +163,7 @@ void cmd_answer_surd_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<10){ // пришло не то
     return;
     }
-unsigned long idp=0,pass=0,id=0,vpuOn=0,surdOn=0,vpuPhase=0,stLed=0,valSurd=0;
+unsigned long idp=0,pass=0,id=0,vpuOn=0,surdOn=0,vpuPhase=0,stLed=0,valSurd=0,valTmin=0;
 
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
@@ -181,7 +192,13 @@ if(strcmp(argv[12],"LED:")==0){
 if(strcmp(argv[14],"VSR:")==0){
   sscanf(argv[15],"%u",&valSurd);
   }
-checkMasterMessageDk((BYTE)id,pass,idp,surdOn,vpuOn,vpuPhase,stLed,valSurd);// установим статусы
+if(strcmp(argv[16],"TMIN:")==0){
+  sscanf(argv[17],"%u",&valTmin);
+  }
+if(checkMasterMessageDk((BYTE)id,pass,idp,surdOn,vpuOn,vpuPhase,stLed,valSurd)){// установим статусы
+  //проверка на отработанное мин время фазы
+  setStTminOneDk(id,valTmin);
+  }
 }
 /*----------------------------------------------------------------------------*/
 /* "для slave"пришла информация о фазах, режим работы с ВПУ, */
@@ -191,7 +208,7 @@ void cmd_setphase_func(struct cmd_raw* cmd_p, int argc, char** argv)
 if(argc<10){ // пришло не то
     return;
     }
-unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0;
+unsigned long id=0,idp=0,pass=0,fSn=0,fSd=0,phase=0,stLed=0,time = 0,psgOk=0,psgErr=0,Tmin=0;
 // проверка сообщения
 if(strcmp(argv[0],"ID:")==0){
   sscanf(argv[1],"%u",&id);
@@ -217,8 +234,17 @@ if(strcmp(argv[12],"LED:")==0){
 if(strcmp(argv[14],"TM:")==0){
   sscanf(argv[15],"%u",&time);
   }
+if(strcmp(argv[16],"POK:")==0){
+  sscanf(argv[17],"%u",&psgOk);
+  }
+if(strcmp(argv[18],"PER:")==0){
+  sscanf(argv[19],"%u",&psgErr);
+  }
+if(strcmp(argv[20],"TMN:")==0){
+  sscanf(argv[21],"%u",&Tmin);
+  }
 // установить сетевые статусы для slave
-if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
+if(checkSlaveMessageDk(idp,pass,fSn,fSd,Tmin)){
   //установить фазы модуль ВПУ
   const BOOL net = getFlagStatusSURD();
   updateCurrentDatePhase(net,id,true,phase);// включаем ВПУ по сети
@@ -226,6 +252,9 @@ if(checkSlaveMessageDk(idp,pass,fSn,fSd)){
   if(id!=PROJ[CUR_DK].surd.ID_DK_CUR){ //это не активное ВПУ, отображаем LED
     setStatusLed(stLed);
     }
+  // параметры качества связи
+  pol_slips.sumOk = psgOk;
+  pol_slips.sumErr = psgErr;
   }
 //собираем команду для отправки
 udp_send_surd(cmd_p);
@@ -362,29 +391,27 @@ void cmd_event_func(struct cmd_raw* cmd_p, int argc, char** argv)
     struct tm  time;
     BOOL res=FALSE;
     unsigned long pos;
-    ///
-    if (strcmp(argv[0], "get") == 0) //
+    //
+    if(strcmp(argv[0], "get") == 0)
     {
         if (argc==2)
         {
-          // прямое чтение
-          if (sscanf(argv[1], "%u", &pos)==1)
+        // прямое чтение
+        if (sscanf(argv[1], "%u", &pos)==1)
             res = evt_fifo_get_direct(pos,&it);
-
         }
         else
         {
-          res = evt_fifo_get(&it);
+        res = evt_fifo_get(&it);
         }
-        ///
-
+        //
         if (res==false)
         {
            strcpy(buf,"SUCCESS:+++NO events!!!");
            udp_sendstr(cmd_p, buf);
            return;
         }
-         /////
+        //
         gmtime(it.ts, &time);
         it.crc=0;
 
@@ -397,14 +424,13 @@ void cmd_event_func(struct cmd_raw* cmd_p, int argc, char** argv)
     }
     else if (strcmp(argv[0], "init") == 0)
     {
-        //evt_find_pointers();
-        Event_Check_Pointers();
-
+    //evt_find_pointers();
+    Event_Check_Pointers();
     }
     else if (strcmp(argv[0], "used") == 0)
     {
-        //evt_fifo_clear();
-        //evt_find_pointers();
+      //evt_fifo_clear();
+      //evt_find_pointers();
       int i = evt_fifo_used();
       snprintf(buf, sizeof(buf), "SUCCESS:%d",  i);
       udp_sendstr(cmd_p, buf);
@@ -412,33 +438,25 @@ void cmd_event_func(struct cmd_raw* cmd_p, int argc, char** argv)
     }
     else if (strcmp(argv[0], "erase") == 0)
     {
-      strcpy(buf,"SUCCESS:START CLEAR FLASH");
-        evt_fifo_clear();
-      strcpy(buf,"SUCCESS:FLASH ERASE OK");
-        //evt_find_pointers();
-        //udp_sendstr(cmd_p, buf);
-        //return;
+     strcpy(buf,"SUCCESS:START CLEAR FLASH");
+     evt_fifo_clear();
+     strcpy(buf,"SUCCESS:FLASH ERASE OK");
     }
     //
     udp_send_success(cmd_p);
-
 }
 //------------------------------------------------------------------------------
 void cmd_test_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
-
     if (argc != 1)
     {
         udp_send_wrong_par(cmd_p);
         return;
     }
-
     unsigned timeout;
     if (sscanf(argv[0], "%u", &timeout) == 1)
     {
-        //pref_set_long(PREF_L_ORION_TX_TIMEOUT, timeout);
-        //orion_reload_pref();
-        udp_send_success(cmd_p);
+    udp_send_success(cmd_p);
     }
 }
 //------------------------------------------------------------------------------
@@ -705,17 +723,15 @@ void cmd_proj_flashrd_func(struct cmd_raw* cmd_p, int argc, char** argv)
   char* l_argv[3];
   char s_addr[10];
   int addr;
-  //////////////
+  //
   if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
   {
     udp_sendstr(cmd_p, "Error: Incorrect address");
     return;
-    //goto err;
   }
-  ///
   // В addr  -только смешение. добавляем базовый адрес
   addr += get_region_start(FLASH_PROGRAM);
-  ///////////////////
+  //
   snprintf((char*)s_addr, sizeof(s_addr), "%#X",addr);
   l_argv[0] = s_addr;
   //
@@ -730,8 +746,6 @@ void cmd_proj_flashrd_func(struct cmd_raw* cmd_p, int argc, char** argv)
   {
     cmd_flashrd_func(cmd_p, 2, l_argv);
   }
-  ////
-
 }
 //------------------------------------------------------------------------------
 // программирвоание программ
@@ -740,17 +754,14 @@ void cmd_progs_flashrd_func(struct cmd_raw* cmd_p, int argc, char** argv)
   char* l_argv[3];
   char s_addr[10];
   int addr;
-  //////////////
+  //
   if (!(sscanf(argv[0], "%08X", &addr) == 1 || sscanf(argv[0], "0x%08X", &addr) == 1))
   {
     udp_sendstr(cmd_p, "Error: Incorrect address");
     return;
-    //goto err;
   }
-  ///
   // В addr  -только смешение. добавляем базовый адрес
   addr += get_region_start(FLASH_PROGS);
-  ///////////////////
   snprintf((char*)s_addr, sizeof(s_addr), "%#X",addr);
   l_argv[0] = s_addr;
   //
@@ -807,14 +818,11 @@ void cmd_flash_func(struct cmd_raw* cmd_p, int argc, char** argv)
     }
     if (p_try >= 5)
         goto err;
-
     if (addr <= VTABLE_SZ && addr+len >= VTABLE_SZ)
     {
         if (!firmware_ver_chek())
             goto err1;
     }
-
-
     udp_send_success(cmd_p);
     return;
 
@@ -824,7 +832,6 @@ err:
     return;
 err1:
     udp_sendstr(cmd_p, (char*)"ERR: Version major error");
-
 }
 //------------------------------------------------------------------------------
 void cmd_flashNFO_func(struct cmd_raw* cmd_p, int argc, char** argv)
@@ -870,7 +877,6 @@ void udp_send_linePWM(struct cmd_raw* cmd_p)
         udp_send_not_enough_mem(cmd_p);
         return;
     }
-
     char* buf = buf_p->payload;
     //
     Get_real_pwm(&adc);
@@ -889,11 +895,9 @@ void udp_send_linePWM(struct cmd_raw* cmd_p)
             U_STAT[0], U_STAT[1], U_STAT[2],
             U_STAT[3], U_STAT[4], U_STAT[5],
             U_STAT[6], U_STAT[7] );
-    /////////
+    //
     udp_sendstr(cmd_p, (char*)buf);
-
     pbuf_free(buf_p);
-
 }
 //------------------------------------------------------------------------------
 void udp_send_lineADC(struct cmd_raw* cmd_p)
@@ -1495,7 +1499,7 @@ return udp_sendstr(cmd_p, buf);
 static err_t udp_send_tvp(struct cmd_raw* cmd_p)
 {
     char buf[128];
-    ///
+    //
     strcpy(buf,"TVP1 is ");
     if (pin_rd(IPIN_TVP0))
       strcat(buf,"off");
@@ -1507,8 +1511,7 @@ static err_t udp_send_tvp(struct cmd_raw* cmd_p)
       strcat(buf,"off\n");
     else
       strcat(buf,"on\n");
-    //////////
-
+    //
     return udp_sendstr(cmd_p, buf);
 }
 //------------------------------------------------------------------------------
@@ -1517,7 +1520,7 @@ static err_t udp_send_event(struct cmd_raw* cmd_p)
     char buf[128];
     struct evt_fifo_item_t  it;
     struct tm  time;
-    ///
+    //
     BOOL res = evt_fifo_get(&it);
     //cache_update();
     if (res==false)
@@ -1525,13 +1528,10 @@ static err_t udp_send_event(struct cmd_raw* cmd_p)
       strcpy(buf,"SUCCESS:+++EMPTY");
       return udp_sendstr(cmd_p, buf);
     }
-
     gmtime(it.ts, &time);
-
     snprintf(buf, sizeof(buf), "SUCCESS:%02d.%02d.%d-%02d:%02d:%02d %s\n",
         time.tm_mday, time.tm_mon, time.tm_year,
         time.tm_hour, time.tm_min, time.tm_sec, it.dat);
-
 return udp_sendstr(cmd_p, buf);
 }
 //------------------------------------------------------------------------------
@@ -1548,22 +1548,21 @@ void Byte_to_Bin(unsigned char bb, char *str)
 static err_t udp_send_lines(struct cmd_raw* cmd_p)
 {
     char buf[128];
-    ///
+    //
     strcpy(buf,"SUCCESS:RED_CHANNEL=");
-    Byte_to_Bin(RED_PORT, buf);
+    Byte_to_Bin(RD_PORT_NET, buf);   //RD_PORT_NET RED_PORT
     strcat(buf," YEL_CHANNEL=");
-    Byte_to_Bin(YEL_PORT, buf);
+    Byte_to_Bin(YL_PORT_NET, buf);   //YL_PORT_NET YEL_PORT
     strcat(buf," GREEN_CHANNEL=");
-    Byte_to_Bin(GREEN_PORT, buf);
+    Byte_to_Bin(GR_PORT_NET, buf);   //GR_PORT_NET GREEN_PORT
     //
     return udp_sendstr(cmd_p, buf);
-
 }
-
 //------------------------------------------------------------------------------
 static err_t udp_send_state(struct cmd_raw* cmd_p,int argc, char** argv)
 {
 char buf[128];
+char tmpbuff[30];
 int curr_dk=0;
 
 if(argc==2){
@@ -1609,9 +1608,12 @@ if(getFlagStatusSURD())strcat(buf,"OK");
 strcat(buf," NET=");
 if(getFlagNetwork())strcat(buf,"OK");
                else strcat(buf,"NO");
-
+// add quality NET
+float qResult2 = (float)pol_slips.sumOk/(pol_slips.sumOk+pol_slips.sumErr);
+float qResult1 = qResult2*100.0;
+snprintf(tmpbuff, sizeof(tmpbuff), " QUAL=%.2f",qResult1);
+strcat(buf,tmpbuff); // в основной буффер
 // add time left
-char tmpbuff[30];
 const long timeleft = DK[curr_dk].control.len;
 snprintf(tmpbuff, sizeof(tmpbuff), " TIME=%u",timeleft);
 strcat(buf,tmpbuff); // в основной буффер
@@ -1686,25 +1688,31 @@ static err_t udp_send_config(struct cmd_raw* cmd_p)
 // "ответ slave" для мастера
 static err_t udp_send_surd(struct cmd_raw* cmd_p)
 {
-    char buf[250],txtPhase[15]={0};
+    char buf[280],txtPhase[15]={0};
     const TPROJECT *prg = retPointPROJECT();// данные по проекту
-    const U32  idp = retCRC32();
-    const BYTE currID = prg->surd.ID_DK_CUR;
-    const DWORD Passw = prg->surd.Pass;
-    const BOOL stSURD = getFlagLocalStatusSURD(); // передаем лог сотояние
-    const BOOL onVPU = retOnVPU();
-    const BYTE nPhase = retStateVPU(); // фаза на ВПУ
-    const WORD stLed = retStatusLed(); // состояние светодиодов
-    retPhaseToText(txtPhase,sizeof(txtPhase),nPhase);
-    const DWORD stNEt = retStatusNet();
+
+    const U32  idp     = retCRC32();
+    const BYTE currID  = prg->surd.ID_DK_CUR;
+    const DWORD Passw  = prg->surd.Pass;
+    const BOOL stSURD  = getFlagLocalStatusSURD(); // передаем лог сотояние
+    const BOOL onVPU   = retOnLocalVPU();
+    const BYTE nPhase  = retStateVPU(); // фаза на ВПУ
+    const WORD stLed   = retStatusLed(); // состояние светодиодов
     const BYTE valSURD = getValueLocalStatusSURD(); // события СУРД
-    // переменные отладка
-    const BYTE  stVB = dataVpu.bOnIndx;
-    const BYTE  stPR = DK[CUR_DK].REQ.req[VPU].faza;
-    const BYTE  stPC = DK[CUR_DK].CUR.faza;
-    const BYTE  stPCp = DK[CUR_DK].CUR.prog_faza;
-    const BYTE  stPN = DK[CUR_DK].NEXT.faza;
-    const BYTE  stPNp = DK[CUR_DK].NEXT.prog_faza;
+    const BOOL stTmin  = retStatusRestart(); // ДК находиться в Тмин фазы при рестарте
+    //переменные отладка
+    retPhaseToText(txtPhase,sizeof(txtPhase),nPhase);
+    const DWORD stNEt  = retStatusNetSend(); //Status SURD NET
+    const DWORD stTime = retStTminSend();    // Tmin NET
+    const BYTE  netVPU = retOnNetworkVPU();  // VPU flag NET
+    const BOOL flTimeEnd = retFlagTminEnd(); // flag NET Time End
+    // переменные отладка для кнопок ВПУ
+    const BYTE  stVB   = dataVpu.bOnIndx;
+    const BYTE  stPR   = DK[CUR_DK].REQ.req[VPU].faza;
+    const BYTE  stPC   = DK[CUR_DK].CUR.faza;
+    const BYTE  stPCp  = DK[CUR_DK].CUR.prog_faza;
+    const BYTE  stPN   = DK[CUR_DK].NEXT.faza;
+    const BYTE  stPNp  = DK[CUR_DK].NEXT.prog_faza;
     const BYTE  stPex  = dataVpu.nextPhase;
     const BYTE  stStep = dataVpu.stepbt;
 
@@ -1718,9 +1726,15 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "PHASE: %s\r\n"
         "LED:   %u\r\n"
         "VSR:   %u\r\n"
+        "TMIN:  %u\r\n"
+        //
         "VER:   %u\r\n"
         "ST:    %u\r\n"
+        "STIME: %u\r\n"
+        "VPUNT: %u\r\n"
+        "FTEND: %u\r\n"
         "SLIPS  ok:%u err:%u\r\n"
+        //
         "But:   %u\r\n"
         "PhExt: %u\r\n"
         "PhR:   %u\r\n"
@@ -1728,8 +1742,7 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         "Step:  %u\r\n"
         "PhCPL: %u\r\n"
         "PhN:   %u\r\n"
-        "PhNPL: %u\r\n"
-          ,
+        "PhNPL: %u\r\n",
         currID,
         idp,
         Passw,
@@ -1738,9 +1751,15 @@ static err_t udp_send_surd(struct cmd_raw* cmd_p)
         txtPhase,
         stLed,
         valSURD,
+        stTmin,
+        //
         VER_MAJOR,
         stNEt,
+        stTime,
+        netVPU,
+        flTimeEnd,
         pol_slips.glOk,pol_slips.glErr,
+        //
         stVB,
         stPex,
         stPR,

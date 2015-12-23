@@ -15,6 +15,7 @@
 #include "../light/light.h"
 #include "../adcc.h"
 #include "../pins.h"
+#include "../vpu.h"
 
 #ifdef KURS_DK
   #include "kurs.h"
@@ -164,7 +165,10 @@ if((DK[CUR_DK].CUR.source==PLAN)){//||(DK[CUR_DK].NEXT.source==PLAN)){
       }
     }
   }
-return(!DK[CUR_DK].control.len);
+//В режиме ВПУ, выходим после отработанного Тмин фазы при старте.
+/*const BOOL retValueVPU = (retOnNetworkVPU())?(!DK[CUR_DK].control.len)&retFlagTminEnd():!DK[CUR_DK].control.len;
+return retValueVPU; */
+return !DK[CUR_DK].control.len;
 }
 //------------------------------------------------------------------------------
 // плюсует к времени секунды
@@ -734,19 +738,16 @@ static void GO_VPU(void)
         {
                 // первый вход - обработка запроса
                 case STA_FIRST:
-                {
-                    if (DK[CUR_DK].REQ.req[VPU].presence)
+                {   // есть запрос и освобождение после перегрузки ДК
+                    if(DK[CUR_DK].REQ.req[VPU].presence)
                     {
-                       // ждем освободения следующего состояния
-                       if ((!DK[CUR_DK].NEXT.set) ||
+                        // ждем освободения следующего состояния
+                        if ((!DK[CUR_DK].NEXT.set) ||
                            (DK[CUR_DK].REQ.req[VPU].work==SPEC_PROG))
-                       {
+                        {
                           Copy_STATES(&DK[CUR_DK].NEXT, &DK[CUR_DK].REQ.req[VPU]);
                           Copy_STATES(&DK[CUR_DK].VPU.cur, &DK[CUR_DK].REQ.req[VPU]);
-                          //
-                          //DK[CUR_DK].requests.VPU.presence = false;
-                          //DK[CUR_DK].VPU.STA = STA_EXIT;
-                       }
+                        }
                     }
                        break;
                 }
@@ -796,7 +797,7 @@ static int REQUESTS(void)
            return (RET_OK);
         }
         //
-        if (DK[CUR_DK].REQ.req[VPU].presence)
+        if((DK[CUR_DK].REQ.req[VPU].presence)&&(retFlagTminEnd())) // затянуть переход проверка готовности по reset
         {
            DK[CUR_DK].REQ.prior_req=VPU;
            return (RET_OK);
@@ -1236,11 +1237,11 @@ if ((DK[CUR_DK].CUR.source==PLAN) || (DK[CUR_DK].CUR.source==TVP)){
     DK[CUR_DK].control.startLen = DK[CUR_DK].control.len  = osn_takt_time[CUR_DK]-TimeDelta;
     else
     DK[CUR_DK].control.startLen = DK[CUR_DK].control.len = 0; // время вышло, сбросс
-    // YF
-    if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))osn_takt_time[CUR_DK]=1;
-    // время окончания
-    TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
-    }else{
+  // YF
+  if(TEST_STA(&DK[CUR_DK].CUR, SPEC_PROG, SPEC_PROG_YF,0))osn_takt_time[CUR_DK]=1;
+  // время окончания
+  TIME_PLUS(&CT, &DK[CUR_DK].control.endPhase,DK[CUR_DK].control.len);
+  }else{
     //static BYTE step = 0;
     // Для ALARM... - длительность - не определена
     TIME_PLUS(&CT, &DK[CUR_DK].control.end, 10);
@@ -1353,6 +1354,14 @@ static bool CONTROL(void)
                 // шаг основного такта
                 case STA_OSN_TAKT:
                 {
+                /*------------------------------------------------------------*/
+                // установим Тмин
+                const DWORD Tmin = getTimeGuard();
+                if ((DK[CUR_DK].control.startLen - DK[CUR_DK].control.len) >  Tmin){// защитный интервал по Тмин зел
+                  //флаги об окончании Тмин  в фазе
+                  clearStatusRestart();
+                  }
+                /*------------------------------------------------------------*/
                    // смотрим новые запросы
                    if (DK[CUR_DK].NEXT.presence)
                    {
@@ -1404,7 +1413,10 @@ static bool CONTROL(void)
                 // шаг промежуточного такта
                 case STA_PROM_TAKTS:
                 {
-                     if (TIME_PHASE_END()) // смотрим время и переходим  TIME_END()
+                  /*-------------------------------*/
+                  clearStatusRestart(); //очищаем флаг
+                  /*-------------------------------*/
+                  if (TIME_PHASE_END()) // смотрим время и переходим  TIME_END()
                      {
                        // переходим
                        CUR_NEXT();
@@ -1457,8 +1469,8 @@ CT.tm_mon = time.month;
 CT.tm_year = time.year;
 // сброс портов
 GREEN_PORT=0;
-  RED_PORT=0;
-  YEL_PORT=0;
+RED_PORT  =0;
+YEL_PORT  =0;
 // перебираем логические ДК если их больше одного
 for (int i_dk=0; i_dk<dk_num; i_dk++)
   {

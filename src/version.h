@@ -30,7 +30,7 @@
 
 #define VER_MAJOR               2
 #define VER_MINOR               0
-#define VER_MINORER             1
+#define VER_MINORER             3
 #define VER_SVN_REV             0     // SVN Revision
 #define VER_FIX_REV             0
 

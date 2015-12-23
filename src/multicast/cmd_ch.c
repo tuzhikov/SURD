@@ -333,7 +333,7 @@ static void cmd_recv(void* arg, struct udp_pcb* upcb, struct pbuf* p, struct ip_
 
     // port for answers on server is always equal pref_get_long(PREF_L_CMD_PORT), default 11990
     struct cmd_raw* cmd_p = cmd_alloc(upcb, p, addr, g_cmd_ch_port);
-    ////////////////////
+    //
     ETH_RECV_FLAG = TRUE;
     if (cmd_p == NULL)
     {
@@ -357,22 +357,6 @@ err:
 /*----------------------------------------------------------------------------*/
 // поток управления светодиодом
 /*----------------------------------------------------------------------------*/
-/*static void task_cmd_LED_func(void* param)
-{
-    for (;;)
-    {
-       tn_task_sleep(100);
-       if (ETH_RECV_FLAG)
-       {
-         hw_watchdog_clear(); // clear WD
-         pin_off(OPIN_TEST2);
-          ETH_RECV_FLAG = FALSE;
-          tn_task_sleep(100);
-          pin_on(OPIN_TEST2);
-        hw_watchdog_clear(); // clear WD
-       }
-    }
-} */
 static void showLED(void)
 {
 static WORD countTime = 0;
@@ -407,7 +391,7 @@ static BYTE stat = Null;
 if(getFlagStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
   // забираем данные c ВПУ мастер
   vir_vpu.vpu[0].id = 0;
-  vir_vpu.vpu[0].vpuOn = retOnVPU();
+  vir_vpu.vpu[0].vpuOn = retOnLocalVPU();
   vir_vpu.vpu[0].phase = retStateVPU();
   vir_vpu.vpu[0].stLED = retStatusLed();
   //
@@ -426,7 +410,6 @@ if(getFlagStatusSURD()){// проверки статуса соединения свех ДК getStatusSURD
   else if(stat==One) // работа активного ВПУ
     {
     if(vir_vpu.vpu[vir_vpu.active].vpuOn){ // ВПУ еще активет?
-       // здесь надо запустить таймер на залипание фазы
        // установить фазы для мастера
        updateCurrentDatePhase(true,vir_vpu.vpu[vir_vpu.active].id,true,
                                 vir_vpu.vpu[vir_vpu.active].phase);
@@ -485,6 +468,9 @@ if(typeCmd==SET_STATUS){
   const DWORD stnet = retStatusSurdSend();// статус СУРД общий для сети
   const DWORD sdnet = retStatusNetSend(); // статус NET общий для сети
   const DWORD retTime = retTimePhase(); // остаток времени для работы фазы
+  const DWORD psgOK  = pol_slips.sumOk;
+  const DWORD psgERR = pol_slips.sumErr;
+  const DWORD restTmin  = retStTminSend();
 
   snprintf(pStr,leng,
         "setstatussurd\r"
@@ -492,12 +478,18 @@ if(typeCmd==SET_STATUS){
         "PASSW: %u\r\n"
         "ST:    %u\r\n"
         "SD:    %u\r\n"
-        "TM:    %u\r\n",
+        "TM:    %u\r\n"
+        "POK:   %u\r\n"
+        "PER:   %u\r\n"
+        "TMN:   %u\r\n",
         idp,
         passw,
         stnet,
         sdnet,
-        retTime);
+        retTime,
+        psgOK,
+        psgERR,
+        restTmin);
   return true;
   }
 if(typeCmd==SET_PHASE){
@@ -510,6 +502,9 @@ if(typeCmd==SET_PHASE){
     const DWORD phase = vir_vpu.vpu[vir_vpu.active].phase; // отправить фазу для установки
     const DWORD stLed = vir_vpu.vpu[vir_vpu.active].stLED;
     const DWORD retTime = retTimePhase(); // остаток времени для работы фазы
+    const DWORD psgOK  = pol_slips.sumOk;
+    const DWORD psgERR = pol_slips.sumErr;
+    const DWORD restTmin  = retStTminSend();
 
     snprintf(pStr,leng,
         "setphaseudp\r"
@@ -520,7 +515,10 @@ if(typeCmd==SET_PHASE){
         "SD:    %u\r\n"
         "PHASE: %u\r\n"
         "LED:   %u\r\n"
-        "TM:    %u\r\n",
+        "TM:    %u\r\n"
+        "POK:   %u\r\n"
+        "PER:   %u\r\n"
+        "TMN:   %u\r\n",
         id,
         idp,
         passw,
@@ -528,8 +526,10 @@ if(typeCmd==SET_PHASE){
         sdnet,
         phase,
         stLed,
-        retTime
-         );
+        retTime,
+        psgOK,
+        psgERR,
+        restTmin);
   return true;
   }
 return false;
@@ -569,23 +569,28 @@ const WORD CountRepet = ret->surd.Count;
 static char BuffCommand[250];
 static int stepMaster = Null;
 static WORD indeDk = 1,countsend=0,countsendOk=0,countsendErr=0;// счет indeDk со второго ДК
+static DWORD countSumOk=0,countSumErr=0,countIndex=0;
 static BYTE countmessageOk = 0,countmessageErr = 0;
 static BYTE countSrdOk=0,countSrdError=0;
 static BOOL fMessageErr = false,fMessageOk = false;
 static BOOL fMessageErrSrd = false,fMessageOkSrd = false;
 static WORD CountDelayPolling = 0;
+static WORD CountDelay = 0;
 struct ip_addr ipaddr;
 WORD answer;
 
 retModeNoPolling();// polling
 CountDelayPolling++; // считаем с каждым входом в автомат
+CountDelay++;
 
 switch(stepMaster)
   {
   case Null: //сбросс
     clearStatusOneDk(indeDk);// нулим
     clearStSurdOneDk(indeDk);// нулим
+    clearStTminOneDk(indeDk);// нулим
     setStatusOneDk(0,getFlagStatusSURD(),getValueLocalStatusSURD()); // status master, статус СУРД
+    setStTminOneDk(0,retStatusRestart()); // установка для мастера
     countsend = 0;
     if(retAnswerVPU()){
                   CollectCmd(BuffCommand,sizeof(BuffCommand),SET_PHASE); // установить фазу
@@ -620,7 +625,19 @@ switch(stepMaster)
     stepMaster=Five;
     pol_slips.glOk  = countsendOk;
     pol_slips.glErr = countsendErr;
+    countSumOk += countsendOk;
+    countSumErr += countsendErr;
     countsendOk = countsendErr = 0;
+    // собираем значения для процента потерь
+    if(CountDelay>DELAY_POLLING*3){ // 3 раз в сек
+      CountDelay = 0;
+      if(++countIndex>100){ // 5 мин
+          CountDelay = countSumOk=countSumErr = countIndex = 0;
+        }else{
+        pol_slips.sumOk  = countSumOk;
+        pol_slips.sumErr = countSumErr;
+        }
+      }
   case Five: // Опрошены все ДК, формируем статус СУРД
     stepMaster=Seven;
     // все ДК в сети
@@ -641,7 +658,6 @@ switch(stepMaster)
         if(!fMessageErr){Event_Push_Str("ERROR: Ошибки опроса ДК");fMessageErr = true;}
         }
       }
-
     // все могут работать в СУРД
     if(getAllSURD()){
       setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
@@ -659,6 +675,13 @@ switch(stepMaster)
           fMessageOkSrd = false;
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
+      }
+    //ДК прошли Тмин переменная для сети
+    setStTminSend(retStTmin());
+    if(getAllTmin()){
+      setFlagTminEnd(true);
+      }else{
+      setFlagTminEnd(false);
       }
   case Seven: // exit OK
     if(CountDelayPolling>DELAY_POLLING){ //ждем до 1 сек для следующего цикла опроса
@@ -692,6 +715,7 @@ switch(stepSlave)
   case Null:
     clearStatusNet();
     clearStSurd();
+    clearStTmin();
     stepSlave = One;
   case One: // Ждем TimeDelay сек и проверка на ОС
     //if(retModeNoPolling())return retNull; // включили ОС, выходим
@@ -704,6 +728,8 @@ switch(stepSlave)
     if(!getFlagStatusSURD()){ReturnToWorkPlan();}
     stepSlave = Three;
   case Three: // проверка ДК в сети?
+    // проверка целостности сети
+    setStatusNetSend(retStatusNet());
     if(getAllDk()){ // ДК в сети
         setFlagNetwork(true); // установить статус сети
         if(++countOk>3){
@@ -713,6 +739,7 @@ switch(stepSlave)
           }
         }else{
         setFlagNetwork(false); // установить статус сети
+        memset(&pol_slips,0,sizeof(pol_slips)); // clear ststus NET
         if(++countError>3){
           countError = 0;
           fMessageOk = false;
@@ -734,6 +761,13 @@ switch(stepSlave)
           fMessageOkSrd = false;
           if(!fMessageErrSrd){Event_Push_Str("ERROR: СУРД NO");fMessageErrSrd = true;}
           }
+        }
+      // установить сетевой статус Тмин.
+      setStTminSend(retStTmin());
+      if(getAllTmin()){
+        setFlagTminEnd(true);
+        }else{
+        setFlagTminEnd(false);
         }
       stepSlave = Null;
       return retOk;
@@ -764,8 +798,6 @@ static void task_cmd_func(void* param)
         // проверка очереди выход по времени
         const int answer = tn_queue_receive(&g_cmd_dque,(void**)&cmd_p,MAX_DELAY_TIME);//TN_WAIT_INFINITE
         hw_watchdog_clear(); // clear WD
-        // showe LED
-        //showLED();
         // таймаут
         if(answer==TERR_TIMEOUT){
           showLED();
@@ -1053,20 +1085,98 @@ void  setStatusSurdSend(DWORD st)
 DK[CUR_DK].StatusSurd.sendStatusSURD = st;
 }
 /*----------------------------------------------------------------------------*/
+// restart Tmin
+// проверить все ДК отработали Тмин.
+BOOL getAllTmin(void)
+{
+const DWORD sattusDk = DK[CUR_DK].StatusSurd.tmpRestartTmin;
+const int maxDk = PROJ[CUR_DK].maxDK;
+
+for(int i=0;i<maxDk;i++)
+  {
+  if(PROJ[CUR_DK].surd.ID_DK_CUR==i){ // это наш id
+    if(retStatusRestart())DK[CUR_DK].StatusSurd.tmpRestartTmin|=(1<<i);
+                     else DK[CUR_DK].StatusSurd.tmpRestartTmin&=~(1<<i);
+    }
+  if((sattusDk&(1<<i))==false)return false; // дк i не прошло Тмин.
+  }
+return true;
+}
+//установть отработан ли Тмин от ДК
+void setStTminOneDk(const BYTE nDk,const BYTE stTmin)
+{
+if(stTmin)DK[CUR_DK].StatusSurd.tmpRestartTmin|=1<<nDk; //Tmin OK
+     else DK[CUR_DK].StatusSurd.tmpRestartTmin&=~(1<<nDk);//Tmin Error
+}
+// запросить статус One DK
+/*BOOL getStTminOneDk(const BYTE nDk)
+{
+return (BOOL)(DK[CUR_DK].StatusSurd.tmpRestartTmin)&(1<<nDk);
+}*/
+// сбрость статус One ДК
+void clearStTminOneDk(const BYTE nDk)
+{
+DK[CUR_DK].StatusSurd.tmpRestartTmin&=~(1<<nDk);
+}
+// очистить Tmin all DK
+void clearStTmin(void)
+{
+DK[CUR_DK].StatusSurd.tmpRestartTmin=NULL;
+}
+// return Tmin all DK
+DWORD retStTmin(void)
+{
+return DK[CUR_DK].StatusSurd.tmpRestartTmin;
+}
+// set all Tmin all
+void setStTmin(DWORD st)
+{
+DK[CUR_DK].StatusSurd.tmpRestartTmin = st;
+}
+/*----------------------------------------------------------------------------*/
+// для передачи в сеть пройденного Тмин в режиме РУ
+DWORD retStTminSend(void)
+{
+return DK[CUR_DK].StatusSurd.sendRestartTmin;
+}
+void setStTminSend(DWORD st)
+{
+DK[CUR_DK].StatusSurd.sendRestartTmin = st;
+}
+/*----------------------------------------------------------------------------*/
+// используються для ВПУ
+BOOL retFlagTminEnd(void)
+{
+return DK[CUR_DK].StatusSurd.flagTminVPU;
+}
+// установить флаг для ВПУ
+void setFlagTminEnd(const BOOL fl)
+{
+DK[CUR_DK].StatusSurd.flagTminVPU = fl;
+}
+/*----------------------------------------------------------------------------*/
 // "slave" проверяем запросы ДК от мастера и устанавливаем сетевой статус
-BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,const DWORD sdnet)
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,
+                         const DWORD sdnet,const DWORD tmin)
 {
 const TPROJECT *prj = retPointPROJECT();
 const U32 idp_calc = retCRC32();//сравним  IDP
+
 if(idp==idp_calc){
   if(pass==prj->surd.Pass){
     if(prj->surd.ID_DK_CUR){// это slave
-      setStatusNet(sdnet);  // флаг net
+      // флаг net
+      setStatusNet(sdnet);
       if(getAllDk())setFlagNetwork(true);
                else setFlagNetwork(false);
-      setStSurd(stnet);     // флаг СУРД
+      // флаг СУРД
+      setStSurd(stnet);
       if(getAllSURD())setFlagStatusSURD(true);
                  else setFlagStatusSURD(false);
+      //флаг окончания Тмин.
+      setStTmin(tmin);
+      if(getAllTmin())setFlagTminEnd(true);
+                 else setFlagTminEnd(false);
       return true;
       }
     }
@@ -1074,7 +1184,7 @@ if(idp==idp_calc){
 return false;
 }
 /*----------------------------------------------------------------------------*/
-// "master" получает ответы от slav, добавлен статус ВПУ, статус СУРД
+// "master" получает ответы от slave, добавлен статус ВПУ, статус СУРД
 BOOL checkMasterMessageDk(const BYTE id,
                           const DWORD pass,
                           const DWORD idp,

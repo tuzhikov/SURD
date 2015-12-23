@@ -33,12 +33,18 @@ static U08         RX1buff_mem[RX1_BUFF_SIZE];
 /*VPU*/
 VPU_EXCHANGE  vpu_exch;
 TVPU dataVpu;
-static BOOL flagAutoMode = false;
-static BOOL flagVpuMode  = false;
+static BOOL flagAutoMode     = false;
+static BOOL flagVpuMode      = false;
+
+static BOOL flagRecNoANSW    = false;
+//static BOOL flagRecANSW_ERR  = false;
+
 static BYTE stUpdataButtonPhase  = Null;// режимы работы кнопок РУ и АВТО
 static BYTE stUpdataButtonManual = Null;
 /*TASK*/
-#define VPU_REFRESH_INTERVAL        100
+#define VPU_REFRESH_INTERVAL        25
+#define INTERVAL_SEC                1000/VPU_REFRESH_INTERVAL
+#define INTERVAL_MIN                INTERVAL_SEC*60
 static TN_TCB task_VPU_tcb;
 #pragma location = ".noinit"
 #pragma data_alignment=8
@@ -421,13 +427,21 @@ Type_ANS DataExchange(void)
         if(answer&(ansOk)){  //(ansOk|ansErr)
           if(vpuCmd[number].FlagEnd){
             dataVpu.satus = tlEnd;number = NULL;step = Null;
+            /*------------------------*/
+            flagRecNoANSW   = false;
+            //flagRecANSW_ERR = false;
+            /*------------------------*/
             return ansOk;
             }
           countError = 0;
           number++;
           }
         if(answer&(ansErr|ansNoAnsw)){
-          if(++countError>10){
+          /*--------------------------*/
+          if(answer&ansErr)   if(!flagRecNoANSW)  {Event_Push_Str("Ошибка ответа ВПУ");flagRecNoANSW = true;}
+          //if(answer&ansNoAnsw)if(!flagRecANSW_ERR){Event_Push_Str("Нет ответа от ВПУ");flagRecANSW_ERR = true;}
+          /*--------------------------*/
+          if(++countError>50){ // delay 5 sec.
             countError = 0;dataVpu.satus = tlNo;return ansErr;} // 5 sec
           }
         step = Null;
@@ -435,6 +449,7 @@ Type_ANS DataExchange(void)
       default:
         step = Null;
         countError = NULL;
+        Event_Push_Str("Ошибка атомта ВПУ");
         return ansErr;
      }
 }
@@ -489,7 +504,7 @@ if(dataVpu.myRY){
           }
         }
       break;
-    case Two:// delay 0.5 S
+    case Two:// delay
       if(++countTime>5){
         countTime=0;
         if(PROG_FAZA == DK[CUR_DK].CUR.work)  stUpdataButtonPhase = Three; // переход ПЛАН->ФАЗА (первый вызов в ВПУ)
@@ -525,7 +540,7 @@ if(dataVpu.myRY){
 // тригерный режим конопок РУ и АВТО
   if(stUpdataButtonManual==Null)//кнопка РУ   retButtonOk dataVpu.bOnIndx!=NO_EVENTS
      {
-       if(ButtonBlok()){ // не обрабатываем кнопки, пока едет переход к фазе
+       if(ButtonBlok()){ // не обрабатываем кнопки, пока едет переход в фазе
          dataVpu.rButton[ButAUTO].On  =bOn;
          dataVpu.rButton[ButManual].On=bOff;
          }
@@ -684,6 +699,27 @@ if(dataVpu.RY){ // рулим - выставляем в ДК состояния
   }
 }
 /*---------------------------------------------------------------------------*/
+// проверка максимального времени выхода из режима РУ
+static void checkingTimeOFF(void)
+{
+static DWORD delayTime = 0;
+static DWORD countSecTimeVPU = 0;
+const  DWORD secTimeVPU = DK[CUR_DK].PROJ->guard.TimeVPU*60;
+// входим 1 раз в сек, управляет наш ВПУ в режиме РУ, secTimeVPU !=0,пропускаем переходный режим source==VPU
+if((++delayTime>INTERVAL_SEC)&&(dataVpu.myRY)&&(secTimeVPU)&&(DK[CUR_DK].CUR.source==VPU)){
+  delayTime = 0;
+  if(dataVpu.bOnIndx==NO_EVENTS){ // кнопки не нажаты
+    if(++countSecTimeVPU>secTimeVPU){   // вышло время выходим из РУ
+      countSecTimeVPU = 0;
+      Event_Push_Str("Выход из ВПУ по времени!");
+      ReturnToWorkPlan();      // return to PLAN
+      }
+    }else{
+    countSecTimeVPU = 0; // сбросим время, нажатие кнопки
+    }
+  }
+}
+/*---------------------------------------------------------------------------*/
 // сброс параметров управления ВПУ
 static void ResetStrMaster(void)
 {
@@ -713,12 +749,14 @@ static void task_VPU_func(void* param)
 
   for (;;)
     {
-    // интервал 100мс.
+    // интервал 25мс.
     tn_task_sleep(VPU_REFRESH_INTERVAL);
     // получить статус СУРД
     vpu_exch.m_to_s.statusNet = getFlagStatusSURD(); // статус СУРД
     // опрос ВПУ
     answer = DataExchange();
+    // отключение по лимиту времени
+    checkingTimeOFF();
 
     switch(stepVPU)
       {
@@ -729,7 +767,7 @@ static void task_VPU_func(void* param)
           updateSatusButton();
           VPU_LOGIC();
           switchPhaseOnVPU();
-          } else
+          }else{
           if(answer&ansErr){
             if(vpu_exch.m_to_s.idDk!=PROJ[CUR_DK].surd.ID_DK_CUR){//это не наш ВПУ
               stepVPU = One;
@@ -737,6 +775,7 @@ static void task_VPU_func(void* param)
               stepVPU = For;
               }
             }
+          }
         break;
       case One: // пасcивный ВПУ выключен или не подключен
         if(!vpu_exch.m_to_s.statusNet){
@@ -987,7 +1026,9 @@ if(strcmp(pStr,"MANUAL") == 0)return tlManual;
 return tlNo;
 }
 /*----------------------------------------------------------------------------*/
-BYTE retOnVPU(void){return vpu_exch.s_to_m.vpuOn;}
+BYTE retOnNetworkVPU(void){return vpu_exch.m_to_s.vpuOn;}
+/*----------------------------------------------------------------------------*/
+BYTE retOnLocalVPU(void)  {return vpu_exch.s_to_m.vpuOn;}
 /*----------------------------------------------------------------------------*/
 Type_STATUS_VPU retStateVPU(void){return vpu_exch.s_to_m.vpu;}
 /*----------------------------------------------------------------------------*/

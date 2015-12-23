@@ -10,6 +10,10 @@ extern     BYTE     GREEN_PORT;
 extern     BYTE     RED_PORT;
 extern     BYTE     YEL_PORT;
 
+extern     BYTE     GR_PORT_NET;
+extern     BYTE     RD_PORT_NET;
+extern     BYTE     YL_PORT_NET;
+
 extern     BYTE     GREEN_PORT_CONF;
 extern     BYTE     RED_PORT_CONF;
 extern     BYTE     YEL_PORT_CONF;

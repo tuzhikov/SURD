@@ -12,7 +12,7 @@
 
 #define CMD_DQUE_SZ     32  // max cmd's fifo size
 #define CMD_NFO_SZ      32  // max cmd's count
-#define MAX_ARGV_SZ     20  // cmd's argument vector size (in one command)
+#define MAX_ARGV_SZ     25  // cmd's argument vector size (in one command)
 #define CMD_FL_ACT      0x0001
 #define MAX_QURY_SURD   3
 #define MAX_VIR_VPU     32
@@ -50,8 +50,10 @@ typedef struct _VIR_VPU{
 }VIR_VPU;
 // промахи опроса по UDP статистика
 typedef struct _POL_SLIPS{
-  BYTE glOk;
-  BYTE glErr;
+  BYTE glOk;   // значение за период опроса
+  BYTE glErr;  // значение за период опроса
+  DWORD sumOk; // сумарное значение за период
+  DWORD sumErr;// сумарное значение за период
 }POL_SLIPS;
 extern POL_SLIPS pol_slips;
 /*----------------------------------------------------------------------------*/
@@ -100,7 +102,18 @@ void clearStatusNet(void);
 BOOL checkMasterMessageDk(const BYTE id,const DWORD pass,const DWORD idp,
                           const BYTE surdOn,const BYTE vpuOn,const BYTE vpuPhase,
                           const WORD stled,const BYTE valSurd);
-BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,
-                         const DWORD stnet,const DWORD sdnet);
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,
+                         const DWORD sdnet,const DWORD tmin);
+// Tmin фазы
+void  setStTminOneDk(const BYTE nDk,const BYTE stTmin);
+void  clearStTminOneDk(const BYTE nDk);
+BOOL  getAllTmin(void);
+void  clearStTmin(void);
+DWORD retStTmin(void);
+void  setStTmin(DWORD st);
+BOOL  retFlagTminEnd(void);
+void  setFlagTminEnd(const BOOL fl);
+DWORD retStTminSend(void);
+void  setStTminSend(DWORD st);
 
 #endif // __CMD_CH_H__
