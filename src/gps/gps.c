@@ -154,7 +154,7 @@ void uart0_int_handler()
                         crc ^= g_rx_buf[g_rx_buf_len];
                     }while( --g_rx_buf_len );
 
-                    if (!crc) // CRC €ръх™р Єю∞ђыЄ† - юс®рсю™р™є!
+                    if (!crc) // CRC
                     {
                         health_count = 0;
                         gps_info.pack_found++;
@@ -397,12 +397,11 @@ static void task_GPS_func(void* param)
     unsigned char time_valid = gps_info.time_valid = 0;
     unsigned char fix_valid = gps_info.fix_valid = 0;
     unsigned char health = gps_info.health = 0;
-    //PPS_INT_ENABLE();
     static unsigned char count_time=0;
     GPS_synk_flag=false;
     //
     pin_on(OPIN_TEST1);
-    ///////
+
     for (;;)
     {
         tn_task_sleep(GPS_REFRESH_INTERVAL);
@@ -415,7 +414,7 @@ static void task_GPS_func(void* param)
           tn_task_sleep(100);
           pin_on(OPIN_TEST1);
         }
-        ///
+        //упрвление светодиодом
         if (GPS_LED==2)
         {
           if (count_time % 2)
@@ -427,12 +426,9 @@ static void task_GPS_func(void* param)
             pin_on(OPIN_TEST1);
           }
         }
-        ///
-        count_time++;
-        if ((count_time % 100)==0)
+        //разрешить обновление времени.
+        if ((++count_time % 5)==0)
           GPS_synk_flag=true;
-        //Synk_TIME();
-
         //
         if (health_count > 4)
         {

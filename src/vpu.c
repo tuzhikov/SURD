@@ -37,12 +37,12 @@ static BOOL flagAutoMode     = false;
 static BOOL flagVpuMode      = false;
 
 static BOOL flagRecNoANSW    = false;
-//static BOOL flagRecANSW_ERR  = false;
+static BOOL flagRecANSW_ERR  = false;
 
 static BYTE stUpdataButtonPhase  = Null;// режимы работы кнопок РУ и АВТО
 static BYTE stUpdataButtonManual = Null;
 /*TASK*/
-#define VPU_REFRESH_INTERVAL        25
+#define VPU_REFRESH_INTERVAL        50
 #define INTERVAL_SEC                1000/VPU_REFRESH_INTERVAL
 #define INTERVAL_MIN                INTERVAL_SEC*60
 static TN_TCB task_VPU_tcb;
@@ -429,7 +429,7 @@ Type_ANS DataExchange(void)
             dataVpu.satus = tlEnd;number = NULL;step = Null;
             /*------------------------*/
             flagRecNoANSW   = false;
-            //flagRecANSW_ERR = false;
+            flagRecANSW_ERR = false;
             /*------------------------*/
             return ansOk;
             }
@@ -439,7 +439,7 @@ Type_ANS DataExchange(void)
         if(answer&(ansErr|ansNoAnsw)){
           /*--------------------------*/
           if(answer&ansErr)   if(!flagRecNoANSW)  {Event_Push_Str("Ошибка ответа ВПУ");flagRecNoANSW = true;}
-          //if(answer&ansNoAnsw)if(!flagRecANSW_ERR){Event_Push_Str("Нет ответа от ВПУ");flagRecANSW_ERR = true;}
+          if(answer&ansNoAnsw)if(!flagRecANSW_ERR){Event_Push_Str("Нет ответа от ВПУ");flagRecANSW_ERR = true;}
           /*--------------------------*/
           if(++countError>50){ // delay 5 sec.
             countError = 0;dataVpu.satus = tlNo;return ansErr;} // 5 sec
@@ -790,7 +790,8 @@ static void task_VPU_func(void* param)
         if((OldSourse==VPU)){
           //DK_RESTART();//
           Event_Push_Str("Reset VPU...\n");
-          tn_reset();
+          resrtart();
+          //tn_reset();
           }
         stepVPU = For;
         }
@@ -940,10 +941,7 @@ return ((vpu_exch.s_to_m.vpuOn)&&(vpu_exch.s_to_m.vpu!=tlNo)); //РУ on, вызвана 
 void retPhaseToText(char *pStr,const BYTE leng,const BYTE phase)
 {
 const Type_STATUS_VPU status = (Type_STATUS_VPU)phase;
-/*if(status<tlOS){
-    snprintf(pStr,leng,"%u",phase);
-    return;
-    } */
+
 switch(status)
   {
   case tlPhase1: strcpy(pStr,"1");return;

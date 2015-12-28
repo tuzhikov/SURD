@@ -342,7 +342,8 @@ void cmd_light_func(struct cmd_raw* cmd_p, int argc, char** argv)
     DK_Service_undo();
     udp_send_success(cmd_p);
     Event_Push_Str("Reset UNDO...\n");
-    tn_reset();
+    resrtart();
+    //tn_reset();
     return;
     }
     else if (strcmp(argv[0], "phase") == 0)
@@ -362,7 +363,8 @@ udp_send_wrong_par(cmd_p);
 void cmd_reboot_func(struct cmd_raw* cmd_p, int argc, char** argv)
 {
     Event_Push_Str("Rebooting...\n");
-    tn_reset();
+    resrtart();
+    //tn_reset();
 }
 //
 void cmd_prefReset_func(struct cmd_raw* cmd_p, int argc, char** argv)

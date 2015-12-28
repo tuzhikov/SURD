@@ -177,8 +177,8 @@ void light_init(void)
     dk_num=0;
     //
     GREEN_PORT_CONF = 0;
-    RED_PORT_CONF = 0;
-    YEL_PORT_CONF = 0;
+    RED_PORT_CONF   = 0;
+    YEL_PORT_CONF   = 0;
     //
    for (int i_dk=0; i_dk<DK_N; i_dk++)
     {
@@ -298,9 +298,9 @@ static bool Check_Chan(void)
     {
       if (U_STAT_PW)
       {
-        if (PROJ[CUR_DK].jornal.power_on)
+        if ((PROJ[CUR_DK].jornal.power_on)&&(flagMessagePwrRTC))
           Event_Push_Str("Включение напряжения");
-        ///
+        //
         U_STAT_PW_last=true;
       }
       else

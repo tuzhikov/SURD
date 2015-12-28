@@ -64,9 +64,8 @@ int     tn_inside_int();
 void    tn_halt();
 void    tn_halt_boot();
 void    tn_reset();
-
+void    resrtart(void);
 // common interrupts
-
 void tn_reset_int_handler();
 void tn_nmi_int_handler();
 void tn_fault_int_handler();
@@ -74,11 +73,8 @@ void tn_default_int_handler();
 void tn_sys_tick_int_handler();
 void PendSV_Handler();
 // hardware initialization
-
 void init_hardware();
-
 // hw time util
-
 void            hw_delay(unsigned long uS);         // hard loop delay in microseconds with tn_disable_interrupt()
 unsigned long   hw_time();                          // current time in milliseconds
 unsigned long   hw_time_span(unsigned long time);   // time span in milliseconds

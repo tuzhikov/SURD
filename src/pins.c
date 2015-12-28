@@ -267,7 +267,8 @@ for(;;)
             fChangeIP = false;
             saveDatePorojectIP();
             Event_Push_Str("Reset IP parameter...\n");
-            tn_reset(); // сбросс CPU
+            resrtart();
+            //tn_reset(); // сбросс CPU
             }
           }
         }

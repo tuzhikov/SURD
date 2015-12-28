@@ -29,7 +29,7 @@ const unsigned char max_date[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30,
 #define ds1390_unselect()      pin_on(OPIN_DS1390_CS_CLOCK)
 
 static unsigned long           g_ds1390_spi_bitrate;
-
+unsigned char flagMessagePwrRTC = false;
 
 
 #define DS1390_BITRATE 3500000
@@ -134,17 +134,16 @@ BOOL ds1390_init(void)
         ds1390_temp.year = 2014;
         SetTime_DS1390(&ds1390_temp);
     }
-
-    if (ds1390_data_buf.trickle_charger != 0xA9)
-        ds1390_wr_b(DS1390_REG_TRICKLE, 0xA9); // включим подзарядку батарейки
-
+    // рестарт был не по плану пишем сообщение
+    if(ds1390_data_buf.trickle_charger != 0xAA)
+      flagMessagePwrRTC = true;
+    //зарядка батареи
+    if(ds1390_data_buf.trickle_charger != 0xA9)
+      ds1390_wr_b(DS1390_REG_TRICKLE, 0xA9); // включим подзарядку батарейки
     // Настроить прерывания на DS1390
     MAP_IntEnable(INT_GPIOA);
     MAP_GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_PIN_7, GPIO_RISING_EDGE);
     MAP_GPIOPinIntEnable(GPIO_PORTA_BASE, GPIO_PIN_7);
-
-
-
     dbg_puts("[done]");
     return (BOOL)TRUE;
 }
@@ -196,7 +195,6 @@ BOOL SetTime_DS1390(DS1390_TIME * time)
 
     return TRUE;
 }
-
 //------------------------------------------------------------------------------
 void DS1390_int_handler(void)
 {
@@ -353,8 +351,7 @@ static char char_to_BCD (unsigned char data)
     int m = time->month + 12 * a - 2;
     return 1 + (7000 + (time->date + y + y / 4 - y / 100 + y / 400 + (31 * m) / 12)) % 7;
 }
-
-/////////////////
+//
   char get_week_num(DS1390_TIME * time)
 {
     int date = time->date;//StrToInt(Form1->Edit2->Text);
@@ -372,14 +369,16 @@ static char char_to_BCD (unsigned char data)
     iJ -= y/100;
     iJ+=y/400;
     iJ-=32045;
-    /////
+    //
     int i4 = (iJ + 31741 - (iJ % 7))% 146097 % 36524 %1461;
     int il = i4/1460;
     int id1 = ((i4-il) % 365) + il;
       unsigned char WN= (id1/7) + 1;;
-    ///
+    //
     return (WN);
-
-
 }
-////
+/*----------------------------------------------------------------------------*/
+void setFlagRestart(void)
+{
+ds1390_wr_b(DS1390_REG_TRICKLE, 0xAA); // установить флаг планового рестарта
+}

@@ -48,26 +48,26 @@ int tn_cpu_int_disable()
 {
     return MAP_IntMasterDisable();
 }
-
+/*----------------------------------------------------------------------------*/
 // Tозвраает состояние регистра PRIMASK перед изменением.
 // 1 - если прерvвания бvли вvкліченv до вvзова функции.
 int tn_cpu_int_enable()
 {
     return MAP_IntMasterEnable();
 }
-
+/*----------------------------------------------------------------------------*/
 int tn_inside_int()
 {
     return HWREG(NVIC_INT_CTRL) & 0x1FF; // NVIC_INT_CTRL[8:0] - active interrupts bits
 }
-
+/*----------------------------------------------------------------------------*/
 void tn_halt()
 {
     tn_cpu_int_disable();
     dbg_trace();
     tn_halt_boot();
 }
-
+/*----------------------------------------------------------------------------*/
 void tn_halt_boot()
 {
     tn_cpu_int_disable();
@@ -77,17 +77,23 @@ void tn_halt_boot()
         hw_delay(50000);
     }
     Event_Push_Str("Reset Halt...\n");
-    tn_reset();
+    resrtart();
+    //tn_reset();
 }
-
+/*----------------------------------------------------------------------------*/
 void tn_reset()
 {
     tn_cpu_int_disable();
     MAP_SysCtlReset();
 }
-
+/*----------------------------------------------------------------------------*/
+void resrtart(void)
+{
+setFlagRestart();
+tn_reset(); // сбросс CPU
+}
+/*----------------------------------------------------------------------------*/
 // interrupts
-
 void tn_reset_int_handler()
 {
 

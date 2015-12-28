@@ -161,7 +161,8 @@ if((DK[CUR_DK].CUR.source==PLAN)){//||(DK[CUR_DK].NEXT.source==PLAN)){
       }else{
       //Init_DK();
       Event_Push_Str("Reset phase...\n");
-      tn_reset();
+      resrtart();
+      //tn_reset();
       }
     }
   }

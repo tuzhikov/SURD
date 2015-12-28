@@ -21,7 +21,7 @@
 #define DS1390_REG_ALARM_MINUTES        0x0A
 #define DS1390_REG_ALARM_HOURS          0x0B
 #define DS1390_REG_ALARM_DAY_DATE       0x0C
- 
+
 #define DS1390_REG_CONTROL              0x0D
 #define DS1390_REG_STATUS               0x0E
 #define DS1390_REG_TRICKLE              0x0F
@@ -59,14 +59,15 @@ typedef struct _DS1390_TIME
     unsigned short year;
 }DS1390_TIME;
 
-
-
+extern unsigned char flagMessagePwrRTC;
+/*----------------------------------------------------------------------------*/
 BOOL ds1390_init();
 BOOL SetTime_DS1390(DS1390_TIME * time);
 BOOL GetTime_DS1390(DS1390_TIME * time);
 void DS1390_int_handler(void);
 extern char get_day(DS1390_TIME * time);
 char get_week_num(DS1390_TIME * time);
+void setFlagRestart(void);
 
 #define EVENT_SINHRO_TIME 1
 
