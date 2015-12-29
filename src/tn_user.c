@@ -417,7 +417,8 @@ void hw_watchdog_int_handler()
         dbg_trace();
 #endif // DEBUG
         Event_Push_Str("Reset Watchdog...\n");
-        tn_reset();
+        resrtart();
+        //tn_reset();
     }
 }
 /*----------------------------------------------------------------------------*/

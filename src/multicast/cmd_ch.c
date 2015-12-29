@@ -476,8 +476,8 @@ if(typeCmd==SET_STATUS){
         "setstatussurd\r"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
-        "ST:    %u\r\n"
-        "SD:    %u\r\n"
+        "ST:    %u\r\n" //статус СУРД
+        "SD:    %u\r\n" //статтус NET
         "TM:    %u\r\n"
         "POK:   %u\r\n"
         "PER:   %u\r\n"
@@ -511,8 +511,8 @@ if(typeCmd==SET_PHASE){
         "ID:    %u\r\n"
         "IDP:   %u\r\n"
         "PASSW: %u\r\n"
-        "ST:    %u\r\n"
-        "SD:    %u\r\n"
+        "ST:    %u\r\n" //статус СУРД
+        "SD:    %u\r\n" //статтус NET
         "PHASE: %u\r\n"
         "LED:   %u\r\n"
         "TM:    %u\r\n"
@@ -661,7 +661,7 @@ switch(stepMaster)
     // все могут работать в СУРД
     if(getAllSURD()){
       setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
-      setFlagStatusSURD(true);     // установить статус сети
+      setFlagStatusSURD(true);        // установить статус сети
       if(++countSrdOk>3){
           countSrdOk = 0;
           fMessageErrSrd = false;
@@ -747,6 +747,7 @@ switch(stepSlave)
           }
         }
       // все могут работать в СУРД
+      setStatusSurdSend(retStSurd()); // текущее состояние СУРД для отправки по UDP
       if(getAllSURD()){
         setFlagStatusSURD(true);  // установим флаг СУРД по сети
         if(++countSrdOk>3){
@@ -1156,7 +1157,7 @@ DK[CUR_DK].StatusSurd.flagTminVPU = fl;
 }
 /*----------------------------------------------------------------------------*/
 // "slave" проверяем запросы ДК от мастера и устанавливаем сетевой статус
-BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD stnet,
+BOOL checkSlaveMessageDk(const DWORD idp,const DWORD pass,const DWORD surd,
                          const DWORD sdnet,const DWORD tmin)
 {
 const TPROJECT *prj = retPointPROJECT();
@@ -1170,7 +1171,7 @@ if(idp==idp_calc){
       if(getAllDk())setFlagNetwork(true);
                else setFlagNetwork(false);
       // флаг СУРД
-      setStSurd(stnet);
+      setStSurd(surd);
       if(getAllSURD())setFlagStatusSURD(true);
                  else setFlagStatusSURD(false);
       //флаг окончания Тмин.
